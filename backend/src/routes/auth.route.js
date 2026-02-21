@@ -2,9 +2,9 @@ import express from "express"
 import {
   register,
   login,
-  logout
+  logout,
+  refreshToken,
 } from "../controllers/auth.controller.js"
-import authenticateRoute from "../middleware/auth.middleware.js"
 import { upload } from "../middleware/upload.middleware.js"
 
 // Initialize the router
@@ -13,7 +13,9 @@ const router = express.Router()
 // Use routers
 router.post("/register", upload.single("profilePic"), register)
 router.post("/login", login)
-router.post("/logout", authenticateRoute, logout)
+router.post("/login", login)
+router.post("/logout", logout)
+router.post("/refresh-token", refreshToken)
 
 
 export default router

@@ -1,6 +1,7 @@
 import User from "../models/user.model.js"
 import { uploadProfileImg } from "../services/cloudinary.service.js"
-import { generateTokens } from "../utils/generateToken.js"
+import { generateTokens, generateAccessToken } from "../utils/generateToken.js"
+import jwt from "jsonwebtoken"
 import fs from "fs"
 
 
@@ -9,7 +10,6 @@ export const register = async (req, res) => {
     try {
         const { name, email, password, confirmPassword } = req.body
 
-        // Validation
         if (!name || !email || !password || !confirmPassword) {
             return res.status(400).json({
                 success: false,
@@ -17,7 +17,6 @@ export const register = async (req, res) => {
             })
         }
 
-        // Check if passwords match
         if (password !== confirmPassword) {
             return res.status(400).json({
                 success: false,
@@ -25,7 +24,6 @@ export const register = async (req, res) => {
             })
         }
 
-        // Check if user already exists
         const existingUser = await User.findOne({ email })
         if (existingUser) {
             return res.status(409).json({
@@ -34,11 +32,9 @@ export const register = async (req, res) => {
             })
         }
 
-        // Handle optional profile picture upload
         let profilePic = ""
         if (req.file) {
             try {
-                // We don't have _id yet, so use email as temp identifier
                 const tempId = email.replace(/[^a-zA-Z0-9]/g, "_")
                 const { url } = await uploadProfileImg(req.file.path, tempId)
                 profilePic = url
@@ -48,13 +44,12 @@ export const register = async (req, res) => {
                     message: "Image upload failed: " + uploadError.message
                 })
             } finally {
-                // Always delete the temp file from local disk
                 fs.unlink(req.file.path, () => {})
             }
         }
 
-        // Create new user
         const user = new User({ name, email, password, profilePic })
+        await user.save() 
 
         return res.status(201).json({
             success: true,
@@ -69,7 +64,6 @@ export const register = async (req, res) => {
         })
 
     } catch (error) {
-        // Cleanup temp file if error occurs after multer but before response
         if (req.file) fs.unlink(req.file.path, () => {})
 
         return res.status(500).json({
@@ -80,13 +74,11 @@ export const register = async (req, res) => {
 }
 
 
-
 // Login Controller
 export const login = async (req, res) => {
     try {
         const { email, password } = req.body
 
-        // Validation
         if (!email || !password) {
             return res.status(400).json({
                 success: false,
@@ -94,7 +86,6 @@ export const login = async (req, res) => {
             })
         }
 
-        // Find user
         const user = await User.findOne({ email }).select("+password")
         if (!user) {
             return res.status(401).json({
@@ -103,7 +94,6 @@ export const login = async (req, res) => {
             })
         }
 
-        // Compare password
         const isMatch = await user.comparePassword(password)
         if (!isMatch) {
             return res.status(401).json({
@@ -112,15 +102,13 @@ export const login = async (req, res) => {
             })
         }
 
-        // Generate tokens (FIXED TYPO)
         const { accessToken, refreshToken } = generateTokens(user._id)
 
-        // Send refresh token via httpOnly cookie
         res.cookie("refreshToken", refreshToken, {
             httpOnly: true,
-            secure: false, // true in production
+            secure: false, // set true in production
             sameSite: "strict",
-            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+            maxAge: 7 * 24 * 60 * 60 * 1000
         })
 
         return res.status(200).json({
@@ -145,23 +133,64 @@ export const login = async (req, res) => {
 }
 
 
+// Refresh Token Controller
+export const refreshToken = async (req, res) => {
+    try {
+        const token = req.cookies.refreshToken
+
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: "Refresh token missing, please login again"
+            })
+        }
+
+        const decoded = jwt.verify(token, process.env.REFRESH_TOKEN)
+
+        const user = await User.findById(decoded.userId)
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: "User no longer exists"
+            })
+        }
+
+        const newAccessToken = generateAccessToken(user._id)
+
+        return res.status(200).json({
+            success: true,
+            accessToken: newAccessToken
+        })
+
+    } catch (error) {
+        return res.status(401).json({
+            success: false,
+            message: "Invalid or expired refresh token, please login again"
+        })
+    }
+}
+
+
 // Logout Controller
 export const logout = async (req, res) => {
+    try {
+        res.clearCookie("refreshToken", {
+            httpOnly: true,
+            secure: false, // match the same options used when setting it
+            sameSite: "strict"
+        })
 
-  try {
-    res.clearCookie("accessToken")
-    res.clearCookie("refreshToken")
+        return res.status(200).json({
+            success: true,
+            message: "Logged out successfully"
+        })
 
-    res.status(200).json({
-      success: true,
-      message: "Logged out successfully",
-    })
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    })
-  }
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        })
+    }
 }
 
 
