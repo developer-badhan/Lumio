@@ -1,10 +1,10 @@
 import express from "express"
 import cookieParser from "cookie-parser"
 import cors from "cors"
-import errorHandler from "./src/middleware/errorMiddleware.js"
+import errorHandler from "./middleware/errorMiddleware.js"
 
 // Import the  Routes
-// import authRouter from "./routes/auth.route.js";
+import authRouter from "./routes/auth.route.js";
 
 // Initialize Express App
 const app = express()
@@ -26,7 +26,7 @@ app.use(cors({
 )
 
 // Use the  Routes
-// app.use("/api/auth", authRouter);
+app.use("/api/auth", authRouter);
 
 
 
