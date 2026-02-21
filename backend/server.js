@@ -4,15 +4,15 @@ import connectDB from "./src/config/db.js"
 
 
 // Load environment variables
-dotenv.config();
+dotenv.config()
 
 // Connect Database
-connectDB();
+connectDB()
 
 // Use PORT from environment or fallback
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5000
 
 // Start Server
 app.listen(PORT, () => {
-  console.log(`Server is running at: http://localhost:${PORT}`);
+  console.log(`Server is running at: http://localhost:${PORT}`)
 });
