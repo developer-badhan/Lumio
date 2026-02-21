@@ -130,8 +130,9 @@ NODE_ENV=development
 # Database
 MONGODB_URL=mongodb://127.0.0.1:27017/lumio_db
 
-# JWT
-JWT_SECRET=lumio_super_secret_key_123
+# Token secrete
+ACCESS_TOKEN=lumio_super_secret_key_123
+REFRESH_TOKEN=lumio_super_refersh_token
 
 # Cloudinary
 CLOUDINARY_CLOUD_NAME=your_cloud_name
@@ -141,8 +142,8 @@ CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 # Email Configuration (Gmail Example)
 CLIENT_ID=your_google_oauth_client_id
 CLIENT_SECRET=your_google_oauth_client_secret
-REFRESH_TOKEN=your_google_refresh_token
-EMAIL_USER=lumioapp@gmail.com
+CLIENT_TOKEN=your_google_refresh_token
+CLIENT_EMAIL=lumioapp@gmail.com
 ```
 
 
