@@ -27,7 +27,8 @@ const userSchema = new mongoose.Schema({
     },
     otp: {
         type: String,
-        default: null
+        default: null,
+        select: false
     },
     otpExpire: {
         type: Date,
@@ -36,6 +37,10 @@ const userSchema = new mongoose.Schema({
     profilePic: {
         type: String,
         default: "",
+    },
+    profilePicPublicId: {
+        type: String,
+        default: "",    
     }
 }, { timestamps: true }) 
 
@@ -47,14 +52,21 @@ userSchema.pre("save", async function () {
     const salt = await bcrypt.genSalt(10)
     this.password = await bcrypt.hash(this.password, salt)
 
+    if (this.isModified("otp") && this.otp !== null) {
+        const salt = await bcrypt.genSalt(10)
+        this.otp = await bcrypt.hash(this.otp, salt)
+    }
+
 })
 
-// Method to compare passwords
+// Compare entered password with hashed password
 userSchema.methods.comparePassword = async function (enteredPassword) {
-
     return await bcrypt.compare(enteredPassword, this.password)
-
 }
 
+// Compare entered OTP with hashed OTP
+userSchema.methods.compareOtp = async function (enteredOtp) {
+    return await bcrypt.compare(enteredOtp, this.otp)
+}
 
 export default mongoose.model("User", userSchema) 
