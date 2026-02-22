@@ -124,26 +124,26 @@ Create a `.env` file inside the **backend root folder**.
 
 ```env
 # Server
-PORT=5000
-NODE_ENV=development
+PORT=3000
 
 # Database
-MONGODB_URL=mongodb://127.0.0.1:27017/lumio_db
+MONGODB_URL=your-database-url
 
 # Token secrete
-ACCESS_TOKEN=lumio_super_secret_key_123
-REFRESH_TOKEN=lumio_super_refersh_token
+ACCESS_TOKEN=your-access-token
+JWT_SECRETE=your-secreate-jwt-for-refresh-token
 
 # Cloudinary
 CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=123456789012345
+CLOUDINARY_API_KEY=your-cloudinary-api-key
 CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 
 # Email Configuration (Gmail Example)
 CLIENT_ID=your_google_oauth_client_id
 CLIENT_SECRET=your_google_oauth_client_secret
-CLIENT_TOKEN=your_google_refresh_token
-CLIENT_EMAIL=lumioapp@gmail.com
+REFRESH_TOKEN=your_google_refresh_token
+EMAIL_USER=your-google-gmail-acctount
+
 ```
 
 
