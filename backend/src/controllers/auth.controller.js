@@ -1,6 +1,6 @@
 import User from "../models/user.model.js"
 import { uploadProfileImg, deleteProfileImg } from "../services/cloudinary.service.js"
-// import { sendOtpEmail, sendWelcomeEmail, sendLoginNotificationEmail } from "../services/email.service.js"
+import { sendOtpEmail, sendWelcomeEmail, sendLoginNotificationEmail } from "../services/email.service.js"
 import { generateTokens, generateAccessToken } from "../utils/generateToken.js"
 import { generateOtp } from "../utils/generateOtp.js"
 import jwt from "jsonwebtoken"
@@ -61,16 +61,16 @@ export const register = async (req, res) => {
             name,
             email,
             password,
-            otp,                                        // will be hashed by pre-save hook
-            otpExpire: Date.now() + 10 * 60 * 1000,    // expires in 10 minutes
+            otp,                                        
+            otpExpire: Date.now() + 10 * 60 * 1000,    
             profilePic,
             profilePicPublicId
         })
 
         await user.save()
 
-        // Send OTP to user's email using the plain OTP (before it got hashed in DB)
-        // await sendOtpEmail(user.email, user.name, otp)
+        // Send OTP to user's email using the plain OTP 
+        await sendOtpEmail(user.email, user.name, otp)
 
         return res.status(201).json({
             success: true,
@@ -140,7 +140,7 @@ export const verifyOtp = async (req, res) => {
         await user.save()
 
         // Send welcome email after successful verification
-        // await sendWelcomeEmail(user.email, user.name)
+        await sendWelcomeEmail(user.email, user.name)
 
         return res.status(200).json({
             success: true,
@@ -201,7 +201,7 @@ export const login = async (req, res) => {
         })
 
         // Notify user of new login via email
-        // await sendLoginNotificationEmail(user.email, user.name)
+        await sendLoginNotificationEmail(user.email, user.name)
 
         return res.status(200).json({
             success: true,
@@ -268,7 +268,7 @@ export const logout = async (req, res) => {
     try {
         res.clearCookie("refreshToken", {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
+            secure: false,
             sameSite: "strict"
         })
 

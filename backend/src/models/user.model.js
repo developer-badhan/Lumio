@@ -54,7 +54,6 @@ userSchema.pre("save", async function () {
     }
 
     if (this.isModified("otp") && this.otp !== null) {
-        console.log("[DEV ONLY] Plain OTP before hashing:", this.otp)
         const salt = await bcrypt.genSalt(10)
         this.otp = await bcrypt.hash(this.otp, salt)
     }

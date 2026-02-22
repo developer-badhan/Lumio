@@ -1,28 +1,44 @@
-import nodemailer from "nodemailer"
+import nodemailer from "nodemailer";
 
-// Retrive from .env and use nodemailer
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: process.env.EMAIL_HOST,
+  port: process.env.EMAIL_PORT,
+  secure: process.env.EMAIL_USE_TLS,
   auth: {
-    type: "OAuth2",
-    user: process.env.CLIENT_EMAIL,
-    clientId: process.env.CLIENT_ID,
-    clientSecret: process.env.CLIENT_SECRET,
-    refreshToken: process.env.CLIENT_REFRESH_TOKEN,
+    user: process.env.EMAIL_HOST_USER,      
+    pass: process.env.EMAIL_HOST_PASSWORD, 
   },
 })
 
-// Verify the connection configuration
+// Verify the transpoter
 transporter.verify((error, success) => {
-    if (error) {
-        console.error('Error connecting to email server:', error);
-    } else {
-        console.log('Email server is ready to send messages');
-    }
-})
+  if (error) {
+    console.error("SMTP connection failed:", error);
+  } else {
+    console.log("SMTP server is ready");
+  }
+});
 
+// Generic email sender
+export const sendEmail = async ({ to, subject, html }) => {
+  try {
+    const info = await transporter.sendMail({
+      from: `"Lumio Chat App" <${process.env.EMAIL_HOST_USER}>`,
+      to,
+      subject,
+      html,
+    });
+    return info;
+  } catch (error) {
+    console.error("Email sending failed:", error)
+    throw new Error("Email could not be sent")
+  }
+};
+
+// For OTP Verification
 export const sendOtpEmail = async (email, name, otp) => {
   const subject = "Verify your Lumio Account"
+
   const html = `
     <h2>Hello ${name}</h2>
     <p>Your OTP for Lumio verification is:</p>
@@ -30,32 +46,34 @@ export const sendOtpEmail = async (email, name, otp) => {
     <p>This OTP expires in 10 minutes.</p>
   `
 
-  await transporter.sendMail({
-    from: `"Lumio Chat App" <${process.env.CLIENT_EMAIL}>`,
+  return await sendEmail({
     to: email,
     subject,
     html,
   })
 }
 
+// Welcome message
 export const sendWelcomeEmail = async (email, name) => {
   const subject = "Welcome to Lumio 🎉"
+
   const html = `
     <h2>Welcome ${name}!</h2>
     <p>Your account has been successfully verified.</p>
     <p>Start chatting now 🚀</p>
   `
 
-  await transporter.sendMail({
-    from: `"Lumio Chat App" <${process.env.CLIENT_EMAIL}>`,
+  return await sendEmail({
     to: email,
     subject,
     html,
   })
 }
 
+// For Loggin message
 export const sendLoginNotificationEmail = async (email, name) => {
   const subject = "New Login to Your Lumio Account 🔐"
+
   const html = `
     <h2>Hello ${name},</h2>
     <p>We noticed a new login to your Lumio account.</p>
@@ -64,13 +82,11 @@ export const sendLoginNotificationEmail = async (email, name) => {
     <br/>
     <p>Stay safe,</p>
     <p><strong>The Lumio Team</strong></p>
-  `
+  `;
 
-  await transporter.sendMail({
-    from: `"Lumio Chat App" <${process.env.CLIENT_EMAIL}>`,
+  return await sendEmail({
     to: email,
     subject,
     html,
   })
 }
-

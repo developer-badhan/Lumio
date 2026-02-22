@@ -139,10 +139,11 @@ CLOUDINARY_API_KEY=your-cloudinary-api-key
 CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 
 # Email Configuration (Gmail Example)
-CLIENT_ID=your_google_oauth_client_id
-CLIENT_SECRET=your_google_oauth_client_secret
-REFRESH_TOKEN=your_google_refresh_token
-EMAIL_USER=your-google-gmail-acctount
+EMAIL_HOST=your-email-host
+EMAIL_PORT=your-email-port
+EMAIL_USE_TLS=your-email-use-tls
+EMAIL_HOST_USER=your-email-host-user
+EMAIL_HOST_PASSWORD=your-email-host-password
 
 ```
 
