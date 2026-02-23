@@ -1,6 +1,6 @@
 # 💬 Lumio — Real-Time Chat Application (MERN Stack)
 
-![image alt](https://github.com/developer-badhan/Lumio/blob/07629c89ea5a0bad2ad2ca96f3257085c1f9ba43/applicationImg.png)
+
 
 Lumio is a **modern, full-stack real-time chat application** inspired by WhatsApp, built using the **MERN Stack**.
 It includes advanced messaging, AI-powered interactions, calling features, secure authentication, and media sharing.
