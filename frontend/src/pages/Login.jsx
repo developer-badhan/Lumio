@@ -1,107 +1,144 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
+import {
+  Mail,
+  Lock,
+  ArrowRight,
+  Sparkles,
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import api from "../services/axios";
 
 const Login = () => {
-  const [formData, setFormData] = useState({ email: '', password: '' });
+  const navigate = useNavigate();
+
+  const [form, setForm] = useState({
+    email: "",
+    password: "",
+  });
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    try {
+      setLoading(true);
+
+      const res = await api.post("/auth/login", form);
+
+      // Save access token
+      localStorage.setItem("token", res.data.accessToken);
+
+      // Navigate to dashboard or home
+      navigate("/");
+
+    } catch (err) {
+      const message = err.response?.data?.message;
+
+      if (err.response?.status === 403) {
+        // Not verified
+        navigate("/verify-otp", {
+          state: { email: form.email },
+        });
+      } else {
+        setError(message || "Login failed");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4 transition-colors duration-300">
-      <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] p-8 border border-gray-100 dark:border-gray-700">
-        
+    <div className="min-h-screen bg-[#0f0b1f] flex items-center justify-center relative overflow-hidden">
+
+      {/* Background Glow */}
+      <div className="absolute w-150 h-150 bg-purple-600/20 rounded-full blur-[140px] -top-50 -left-37.5" />
+      <div className="absolute w-125 h-125 bg-purple-500/10 rounded-full blur-[140px] -bottom-37.5 -right-25" />
+
+      <div className="w-full max-w-md bg-[#151129] border border-purple-500/10 shadow-2xl shadow-purple-900/30 rounded-3xl p-10 relative z-10">
+
+        {/* Header */}
         <div className="text-center mb-8">
-          <div className="w-12 h-12 bg-linear-to-br from-purple-500 to-purple-700 rounded-xl mx-auto flex items-center justify-center mb-4 shadow-lg shadow-purple-500/30">
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+          <div className="flex justify-center mb-4">
+            <div className="bg-purple-600 p-4 rounded-2xl shadow-lg shadow-purple-700/30">
+              <Sparkles className="text-white" size={24} />
+            </div>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome back</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Enter your details to access your chats.</p>
+
+          <h1 className="text-3xl font-bold text-white">
+            Welcome Back
+          </h1>
+
+          <p className="text-purple-300/70 mt-2 text-sm">
+            Sign in to continue to Lumio
+          </p>
         </div>
 
-        <form className="space-y-5">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Email address</label>
-            <input 
-              type="email" 
-              className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all duration-200"
-              placeholder="name@example.com"
-            />
-          </div>
-          
-          <div>
-            <div className="flex justify-between items-center mb-1.5">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
-              <a href="#" className="text-sm font-medium text-purple-600 hover:text-purple-500 transition-colors">Forgot password?</a>
-            </div>
-            <input 
-              type="password" 
-              className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all duration-200"
-              placeholder="••••••••"
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+
+          {/* Email */}
+          <div className="relative">
+            <Mail className="absolute left-3 top-3 text-purple-400" size={18} />
+            <input
+              type="email"
+              name="email"
+              placeholder="Email Address"
+              value={form.email}
+              onChange={handleChange}
+              required
+              className="w-full bg-[#1d1736] text-white placeholder-purple-300/50 border border-purple-500/20 focus:border-purple-500 focus:ring-2 focus:ring-purple-600/30 transition-all rounded-xl py-3 pl-10 pr-4 outline-none"
             />
           </div>
 
-          <div className="flex items-center">
-            <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500/30 transition-colors" />
-            <label className="ml-2 text-sm text-gray-600 dark:text-gray-400">Remember me</label>
+          {/* Password */}
+          <div className="relative">
+            <Lock className="absolute left-3 top-3 text-purple-400" size={18} />
+            <input
+              type="password"
+              name="password"
+              placeholder="Password"
+              value={form.password}
+              onChange={handleChange}
+              required
+              className="w-full bg-[#1d1736] text-white placeholder-purple-300/50 border border-purple-500/20 focus:border-purple-500 focus:ring-2 focus:ring-purple-600/30 transition-all rounded-xl py-3 pl-10 pr-4 outline-none"
+            />
           </div>
 
-          <button className="w-full py-2.5 px-4 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-xl shadow-md shadow-purple-500/20 active:scale-[0.98] transition-all duration-200 flex justify-center items-center gap-2">
-            Sign In
+          {error && (
+            <p className="text-red-400 text-sm text-center">{error}</p>
+          )}
+
+          {/* Button */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-purple-600 hover:bg-purple-700 active:scale-[0.98] transition-all text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-purple-900/40"
+          >
+            {loading ? "Signing In..." : "Sign In"}
+            <ArrowRight size={18} />
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
-          Don't have an account? <a href="#" className="font-semibold text-purple-600 hover:text-purple-500 transition-colors">Register here</a>
-        </p>
+        {/* Footer */}
+        <div className="mt-6 text-center text-sm text-purple-300/60">
+          Don’t have an account?{" "}
+          <a
+            href="/register"
+            className="text-purple-400 hover:text-purple-300 font-medium"
+          >
+            Sign up
+          </a>
+        </div>
       </div>
     </div>
   );
 };
 
 export default Login;
-
-
-
-
-// import { useState } from "react"
-// import { useNavigate } from "react-router-dom"
-// import axios from "../services/axios"
-// import { useAuth } from "../context/AuthContext"
-
-// const Login = () => {
-//   const [email, setEmail] = useState("")
-//   const [password, setPassword] = useState("")
-//   const { getMe } = useAuth()
-//   const navigate = useNavigate()
-
-//   const handleSubmit = async (e) => {
-//     e.preventDefault()
-
-//     await axios.post("/auth/login", { email, password })
-
-//     await getMe()
-//     navigate("/")
-//   }
-
-//   return (
-//     <div className="h-screen flex items-center justify-center">
-//       <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow w-96">
-//         <h2 className="text-xl mb-4">Login</h2>
-
-//         <input value={email}
-//           onChange={(e) => setEmail(e.target.value)}
-//           placeholder="Email"
-//           className="w-full border p-2 mb-2" />
-
-//         <input type="password"
-//           value={password}
-//           onChange={(e) => setPassword(e.target.value)}
-//           placeholder="Password"
-//           className="w-full border p-2 mb-2" />
-
-//         <button className="bg-blue-600 text-white w-full p-2 rounded">
-//           Login
-//         </button>
-//       </form>
-//     </div>
-//   )
-// }
-
-// export default Login

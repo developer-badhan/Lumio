@@ -76,8 +76,8 @@ const Register = () => {
     <div className="min-h-screen bg-[#0f0b1f] flex items-center justify-center relative overflow-hidden">
 
       {/* Background Glow */}
-      <div className="absolute w-[600px] h-[600px] bg-purple-600/20 rounded-full blur-[140px] top-[-200px] left-[-150px]" />
-      <div className="absolute w-[500px] h-[500px] bg-purple-500/10 rounded-full blur-[140px] bottom-[-150px] right-[-100px]" />
+      <div className="absolute w-150 h-150 bg-purple-600/20 rounded-full blur-[140px] -top-50 -left-37.5" />
+      <div className="absolute w-125 h-125 bg-purple-500/10 rounded-full blur-[140px] -bottom-37.5 -right-25" />
 
       <div className="w-full max-w-md bg-[#151129] border border-purple-500/10 shadow-2xl shadow-purple-900/30 rounded-3xl p-10 relative z-10">
 
