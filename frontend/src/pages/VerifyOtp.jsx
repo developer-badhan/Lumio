@@ -1,84 +1,235 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { Lock, ArrowRight, Sparkles } from "lucide-react";
+import api from "../services/axios";
+
+const OTP_LENGTH = 6;
 
 const VerifyOTP = () => {
-  const [otp, setOtp] = useState(new Array(6).fill(''));
-  const [countdown, setCountdown] = useState(30);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [otp, setOtp] = useState(new Array(OTP_LENGTH).fill(""));
   const inputRefs = useRef([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [info, setInfo] = useState(""); // success/info messages
+  const [countdown, setCountdown] = useState(30); // resend cooldown (seconds)
 
-  // Simple countdown timer for UX
+  // Read token from sessionStorage
+  const verifyToken = typeof window !== "undefined" ? sessionStorage.getItem("verifyToken") : null;
+
   useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-      return () => clearTimeout(timer);
+    // If no token available, send user back to register
+    if (!verifyToken) {
+      setError("Verification session missing. Please register or login again.");
+      // Optional: navigate("/register")
     }
+  }, [verifyToken]);
+
+  // countdown timer
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const t = setTimeout(() => setCountdown((s) => s - 1), 1000);
+    return () => clearTimeout(t);
   }, [countdown]);
 
-  const handleChange = (element, index) => {
-    if (isNaN(element.value)) return false;
+  const handleChange = (e, idx) => {
+    const val = e.target.value.trim();
+    if (!/^\d?$/.test(val)) return; // only allow single digit numeric
 
     const newOtp = [...otp];
-    newOtp[index] = element.value;
+    newOtp[idx] = val;
     setOtp(newOtp);
 
-    // Auto focus next input
-    if (element.nextSibling && element.value) {
-      element.nextSibling.focus();
+    // move forward
+    if (val && inputRefs.current[idx + 1]) {
+      inputRefs.current[idx + 1].focus();
     }
   };
 
-  const handleKeyDown = (e, index) => {
-    // Auto focus previous input on backspace
-    if (e.key === 'Backspace' && !otp[index] && inputRefs.current[index - 1]) {
-      inputRefs.current[index - 1].focus();
+  const handleKeyDown = (e, idx) => {
+    if (e.key === "Backspace" && !otp[idx] && inputRefs.current[idx - 1]) {
+      inputRefs.current[idx - 1].focus();
+    }
+    if (e.key === "ArrowLeft" && inputRefs.current[idx - 1]) {
+      inputRefs.current[idx - 1].focus();
+    }
+    if (e.key === "ArrowRight" && inputRefs.current[idx + 1]) {
+      inputRefs.current[idx + 1].focus();
+    }
+  };
+
+  const handleVerify = async (e) => {
+    e.preventDefault();
+    setError("");
+    setInfo("");
+
+    if (!verifyToken) {
+      setError("Verification session missing. Please register again.");
+      return;
+    }
+
+    const enteredOtp = otp.join("");
+    if (enteredOtp.length !== OTP_LENGTH) {
+      setError("Please enter the 6-digit code.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await api.post(
+        "/auth/verify-otp",
+        { otp: enteredOtp },
+        {
+          headers: {
+            Authorization: `Bearer ${verifyToken}`,
+          },
+        }
+      );
+
+      setInfo(res.data?.message || "Account verified successfully!");
+      // Clear verify token (no longer needed)
+      sessionStorage.removeItem("verifyToken");
+
+      // After small delay navigate to login
+      setTimeout(() => navigate("/login"), 1400);
+    } catch (err) {
+      const message = err.response?.data?.message || "Verification failed";
+      setError(message);
+
+      // If token expired or invalid, suggest register
+      if (err.response?.status === 401) {
+        // expired/invalid token
+        setTimeout(() => {
+          sessionStorage.removeItem("verifyToken");
+          navigate("/register");
+        }, 1600);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setError("");
+    setInfo("");
+
+    if (!verifyToken) {
+      setError("Verification session missing. Please register again.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await api.post(
+        "/auth/otp-resend",
+        {}, // no body
+        {
+          headers: {
+            Authorization: `Bearer ${verifyToken}`,
+          },
+        }
+      );
+
+      // Update token if backend returned new token
+      if (res.data?.verifyToken) {
+        sessionStorage.setItem("verifyToken", res.data.verifyToken);
+      }
+
+      setInfo(res.data?.message || "OTP resent to your email.");
+      setCountdown(30); // reset cooldown
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to resend OTP");
+      if (err.response?.status === 401) {
+        sessionStorage.removeItem("verifyToken");
+        setTimeout(() => navigate("/register"), 1400);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4 transition-colors duration-300">
-      <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] p-8 border border-gray-100 dark:border-gray-700 text-center animate-fade-in-up">
-        
-        <div className="w-16 h-16 bg-purple-50 dark:bg-purple-500/10 rounded-full mx-auto flex items-center justify-center mb-6">
-          <svg className="w-8 h-8 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+    <div className="min-h-screen bg-[#0f0b1f] flex items-center justify-center relative overflow-hidden p-4">
+      {/* Background Glow */}
+      <div className="absolute w-150 h-150 bg-purple-600/20 rounded-full blur-[140px] -top-50 -left-37.5" />
+      <div className="absolute w-125 h-125 bg-purple-500/10 rounded-full blur-[140px] -bottom-37.5 -right-25" />
+
+      <div className="w-full max-w-md bg-[#151129] border border-purple-500/8 shadow-2xl shadow-purple-900/30 rounded-3xl p-8 relative z-10">
+        <div className="text-center mb-6">
+          <div className="flex justify-center mb-6">
+            <div className="w-20 h-20 rounded-full bg-linear-to-br from-purple-500 to-purple-700 flex items-center justify-center shadow-xl shadow-purple-900/40">
+              <svg
+                viewBox="0 0 24 24"
+                className="w-11 h-11"
+                fill="white"
+              >
+                <path d="M12 3C6.477 3 2 6.94 2 11.5c0 2.63 1.4 4.98 3.6 6.5L4 22l4.3-2.3c1.14.32 2.36.5 3.7.5 5.523 0 10-3.94 10-8.5S17.523 3 12 3z"/>
+              </svg>
+          </div>
+        </div>
+          <h2 className="text-2xl font-bold text-white">Verify your account</h2>
+          <p className="text-purple-300/70 mt-2 text-sm">
+            Enter the 6-digit code sent to your email
+          </p>
         </div>
 
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Check your email</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">
-          We've sent a 6-digit verification code to <br/>
-          <span className="font-medium text-gray-900 dark:text-gray-200">s****@example.com</span>
-        </p>
+        <form onSubmit={handleVerify} className="space-y-6">
+          <div className="flex justify-center gap-2 sm:gap-3 mb-2">
+            {otp.map((digit, idx) => (
+              <input
+                key={idx}
+                ref={(el) => (inputRefs.current[idx] = el)}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={digit}
+                onChange={(e) => handleChange(e, idx)}
+                onKeyDown={(e) => handleKeyDown(e, idx)}
+                className="w-12 h-14 sm:w-14 sm:h-16 text-center text-xl font-semibold bg-[#1d1736] border border-purple-500/20 rounded-xl text-white focus:ring-2 focus:ring-purple-600 outline-none transition-all"
+                autoFocus={idx === 0}
+              />
+            ))}
+          </div>
 
-        <div className="flex justify-center gap-2 sm:gap-3 mb-8">
-          {otp.map((data, index) => (
-            <input
-              className="w-10 h-12 sm:w-12 sm:h-14 text-center text-xl font-semibold bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all"
-              type="text"
-              name="otp"
-              maxLength="1"
-              key={index}
-              value={data}
-              onChange={e => handleChange(e.target, index)}
-              onKeyDown={e => handleKeyDown(e, index)}
-              ref={el => inputRefs.current[index] = el}
-            />
-          ))}
-        </div>
+          {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+          {info && <p className="text-green-400 text-sm text-center">{info}</p>}
 
-        <button className="w-full py-3 px-4 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-xl shadow-md shadow-purple-500/20 active:scale-[0.98] transition-all duration-200 mb-6">
-          Verify Account
-        </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-purple-900/30 active:scale-[0.98] transition-all"
+          >
+            {loading ? "Verifying..." : "Verify Account"}
+            <ArrowRight size={18} />
+          </button>
+        </form>
 
-        <div className="text-sm text-gray-500 dark:text-gray-400">
-          Didn't receive the code?{' '}
+        <div className="mt-4 text-center text-sm text-purple-300/70">
+          Didn't receive the code?{" "}
           {countdown > 0 ? (
-            <span className="font-medium text-gray-400 cursor-not-allowed">Resend in {countdown}s</span>
+            <span className="font-medium text-purple-400/60">Resend in {countdown}s</span>
           ) : (
-            <button 
-              onClick={() => setCountdown(30)}
-              className="font-semibold text-purple-600 hover:text-purple-500 transition-colors"
+            <button
+              onClick={handleResend}
+              disabled={loading}
+              className="font-semibold text-purple-300 hover:text-purple-200"
             >
               Click to resend
             </button>
           )}
+        </div>
+
+        <div className="mt-6 text-center text-sm text-purple-300/60">
+          <button
+            onClick={() => {
+              sessionStorage.removeItem("verifyToken");
+              navigate("/register");
+            }}
+            className="text-purple-400 hover:text-purple-300 font-medium"
+          >
+            Start over / Register again
+          </button>
         </div>
       </div>
     </div>
@@ -86,40 +237,3 @@ const VerifyOTP = () => {
 };
 
 export default VerifyOTP;
-
-
-// import { useState } from "react"
-// import { useNavigate } from "react-router-dom"
-// import axios from "../services/axios"
-
-// const VerifyOtp = () => {
-//   const [otp, setOtp] = useState("")
-//   const navigate = useNavigate()
-
-//   const handleSubmit = async (e) => {
-//     e.preventDefault()
-
-//     await axios.post("/auth/verify-otp", { otp })
-
-//     navigate("/login")
-//   }
-
-//   return (
-//     <div className="h-screen flex items-center justify-center">
-//       <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow w-96">
-//         <h2 className="text-xl mb-4">Verify OTP</h2>
-
-//         <input value={otp}
-//           onChange={(e) => setOtp(e.target.value)}
-//           placeholder="Enter OTP"
-//           className="w-full border p-2 mb-2" />
-
-//         <button className="bg-green-500 text-white w-full p-2 rounded">
-//           Verify
-//         </button>
-//       </form>
-//     </div>
-//   )
-// }
-
-// export default VerifyOtp
