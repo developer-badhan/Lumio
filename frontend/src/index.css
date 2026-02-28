@@ -1,1 +1,24 @@
 @import "tailwindcss";
+
+/* glass panel */
+@utility glass-panel {
+  background-color: rgba(255,255,255,0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(200,200,200,0.35);
+}
+.dark .glass-panel {
+  background-color: rgba(0,0,0,0.7);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* input premium utility */
+@utility input-premium {
+  width: 100%;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  background-color: theme(colors.slate.100);
+  outline: none;
+}
+.dark .input-premium {
+  background-color: rgba(255,255,255,0.05);
+}
