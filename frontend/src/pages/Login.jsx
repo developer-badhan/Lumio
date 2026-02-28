@@ -65,12 +65,17 @@ const Login = () => {
 
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <div className="bg-purple-600 p-4 rounded-2xl shadow-lg shadow-purple-700/30">
-              <Sparkles className="text-white" size={24} />
+          <div className="flex justify-center mb-6">
+            <div className="w-20 h-20 rounded-full bg-linear-to-br from-purple-500 to-purple-700 flex items-center justify-center shadow-xl shadow-purple-900/40">
+              <svg
+                viewBox="0 0 24 24"
+                className="w-11 h-11"
+                fill="white"
+                  >
+                  <path d="M12 3C6.477 3 2 6.94 2 11.5c0 2.63 1.4 4.98 3.6 6.5L4 22l4.3-2.3c1.14.32 2.36.5 3.7.5 5.523 0 10-3.94 10-8.5S17.523 3 12 3z"/>
+              </svg>
             </div>
           </div>
-
           <h1 className="text-3xl font-bold text-white">
             Welcome Back
           </h1>
