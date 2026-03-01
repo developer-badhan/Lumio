@@ -2,12 +2,14 @@ import express from "express"
 import {
   register,
   verifyOtp,
+  otpResend,
   login,
   logout,
   refreshToken,
   getMe,
   getAllUsers,
-  changeProfilePic
+  changeProfilePic,
+  changePassword,
 } from "../controllers/auth.controller.js"
 import { upload } from "../middleware/upload.middleware.js"
 import authenticateRoute from "../middleware/auth.middleware.js"
@@ -27,5 +29,6 @@ router.post("/refresh-token", refreshToken)
 router.get("/me", authenticateRoute, getMe)
 router.get("/users", authenticateRoute, getAllUsers)
 router.patch("/change-profile-pic", authenticateRoute, upload.single("profilePic"), changeProfilePic)
+router.patch("/change-password", authenticateRoute, changePassword)
 
 export default router
