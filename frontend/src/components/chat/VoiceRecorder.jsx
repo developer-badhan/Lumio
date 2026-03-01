@@ -1,221 +1,231 @@
 import React, { useEffect, useRef, useState } from "react";
-import {
-  Trash2,
-  Send,
-  Pause,
-  Play,
-  Mic,
-} from "lucide-react";
+import { Trash2, Mic, Send, Pause, Play } from "lucide-react";
 import WaveSurfer from "wavesurfer.js";
+import RecordPlugin from "wavesurfer.js/dist/plugins/record.esm.js";
+
+const NUM_BARS = 12; // WhatsApp style
 
 const VoiceRecorder = ({ onCancel, onSend }) => {
-  const [isRecording, setIsRecording] = useState(true);
+  const waveSurferRef = useRef(null);
+  const playbackRef = useRef(null);
+  const analyserRef = useRef(null);
+  const dataArrayRef = useRef(null);
+  const animationFrameRef = useRef(null);
+
+  const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [seconds, setSeconds] = useState(0);
-  const [audioBlob, setAudioBlob] = useState(null);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [timer, setTimer] = useState(0);
+  const [recordedBlob, setRecordedBlob] = useState(null);
+  const [isPlayingPreview, setIsPlayingPreview] = useState(false);
+  const [barHeights, setBarHeights] = useState(Array(NUM_BARS).fill(5));
 
-  const mediaRecorderRef = useRef(null);
-  const chunksRef = useRef([]);
-  const timerRef = useRef(null);
-  const waveformRef = useRef(null);
-  const wavesurferRef = useRef(null);
-
+  // Initialize WaveSurfer + RecordPlugin
   useEffect(() => {
-    startRecording();
+    if (!waveSurferRef.current) {
+      waveSurferRef.current = WaveSurfer.create({
+        container: "#waveform",
+        waveColor: "rgba(255,255,255,0.2)",
+        progressColor: "rgba(255,255,255,0.6)",
+        cursorWidth: 0,
+        height: 40,
+        responsive: true,
+        plugins: [
+          RecordPlugin.create({
+            audioContext: null,
+            bufferSize: 4096,
+            leaveStreamOpen: true,
+            onStop: (blob) => setRecordedBlob(blob),
+          }),
+        ],
+      });
+    }
 
     return () => {
-      cleanup();
+      waveSurferRef.current?.destroy();
+      waveSurferRef.current = null;
     };
   }, []);
 
+  // Timer
+  useEffect(() => {
+    let interval;
+    if (isRecording && !isPaused) {
+      interval = setInterval(() => setTimer((prev) => prev + 1), 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isRecording, isPaused]);
+
+  // Animate Bars
+  const animateBars = () => {
+    if (!analyserRef.current || !dataArrayRef.current) return;
+
+    analyserRef.current.getByteFrequencyData(dataArrayRef.current);
+    const newHeights = Array.from({ length: NUM_BARS }, (_, i) => {
+      // map frequency bands to bar heights
+      const index = Math.floor((i / NUM_BARS) * dataArrayRef.current.length);
+      return Math.max(4, (dataArrayRef.current[index] / 255) * 20);
+    });
+    setBarHeights(newHeights);
+    animationFrameRef.current = requestAnimationFrame(animateBars);
+  };
+
+  // Start recording
   const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-      });
+    if (!waveSurferRef.current) return;
+    await waveSurferRef.current.startRecording();
+    setIsRecording(true);
+    setIsPaused(false);
+    setTimer(0);
+    setRecordedBlob(null);
+    setIsPlayingPreview(false);
 
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      chunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunksRef.current.push(e.data);
-        }
-      };
-
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, {
-          type: "audio/webm",
-        });
-        setAudioBlob(blob);
-        initWaveform(blob);
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-
-      timerRef.current = setInterval(() => {
-        setSeconds((prev) => prev + 1);
-      }, 1000);
-    } catch (err) {
-      console.error("Mic permission denied", err);
+    // Setup analyser for live bars
+    const stream = waveSurferRef.current.microphone?.mediaStream;
+    if (stream) {
+      const audioContext = waveSurferRef.current.backend.getAudioContext();
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 64;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+      dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
+      animateBars();
     }
   };
 
-  const handlePauseResume = () => {
-    const recorder = mediaRecorderRef.current;
-
-    if (!recorder) return;
-
-    if (recorder.state === "recording") {
-      recorder.pause();
-      clearInterval(timerRef.current);
-      setIsPaused(true);
-    } else if (recorder.state === "paused") {
-      recorder.resume();
-      timerRef.current = setInterval(() => {
-        setSeconds((prev) => prev + 1);
-      }, 1000);
-      setIsPaused(false);
-    }
+  const pauseRecording = () => {
+    waveSurferRef.current?.pause();
+    setIsPaused(true);
+    cancelAnimationFrame(animationFrameRef.current);
   };
 
+  const resumeRecording = () => {
+    waveSurferRef.current?.play();
+    setIsPaused(false);
+    animateBars();
+  };
 
-  const stopRecording = () => {
-    const recorder = mediaRecorderRef.current;
-    if (!recorder) return;
-
-    recorder.stop();
-    recorder.stream.getTracks().forEach((t) => t.stop());
-    clearInterval(timerRef.current);
+  const stopRecording = async () => {
+    const blob = await waveSurferRef.current?.stopRecording();
+    setRecordedBlob(blob);
     setIsRecording(false);
-  };
+    setIsPaused(false);
+    setTimer(0);
+    cancelAnimationFrame(animationFrameRef.current);
 
-
-  const initWaveform = (blob) => {
-    if (!waveformRef.current) return;
-
-    const wavesurfer = WaveSurfer.create({
-      container: waveformRef.current,
-      waveColor: "#a78bfa",
-      progressColor: "#6366f1",
-      cursorColor: "#ffffff",
-      height: 60,
+    if (playbackRef.current) playbackRef.current.destroy();
+    playbackRef.current = WaveSurfer.create({
+      container: "#waveform",
+      waveColor: "rgba(255,255,255,0.2)",
+      progressColor: "white",
+      cursorWidth: 1,
+      height: 40,
       responsive: true,
     });
-
-    wavesurfer.loadBlob(blob);
-
-    wavesurfer.on("finish", () => {
-      setIsPlaying(false);
-    });
-
-    wavesurferRef.current = wavesurfer;
+    if (blob) playbackRef.current.loadBlob(blob);
+    playbackRef.current.on("finish", () => setIsPlayingPreview(false));
   };
 
-
-  const handlePlayPause = () => {
-    if (!wavesurferRef.current) return;
-
-    wavesurferRef.current.playPause();
-    setIsPlaying((prev) => !prev);
-  };
-
-
-  const handleSend = () => {
-    if (audioBlob) {
-      onSend(audioBlob);
+  const togglePreviewPlayback = () => {
+    if (!playbackRef.current) return;
+    if (isPlayingPreview) {
+      playbackRef.current.pause();
+      setIsPlayingPreview(false);
+    } else {
+      playbackRef.current.play();
+      setIsPlayingPreview(true);
     }
   };
 
+  const handleSend = () => {
+    if (recordedBlob) {
+      onSend(recordedBlob);
+      setRecordedBlob(null);
+      if (playbackRef.current) playbackRef.current.destroy();
+      playbackRef.current = null;
+      setIsPlayingPreview(false);
+    }
+  };
 
   const handleCancel = () => {
-    cleanup();
+    waveSurferRef.current?.stopRecording();
+    setIsRecording(false);
+    setIsPaused(false);
+    setTimer(0);
+    setRecordedBlob(null);
+    cancelAnimationFrame(animationFrameRef.current);
+    if (playbackRef.current) playbackRef.current.destroy();
+    playbackRef.current = null;
+    setIsPlayingPreview(false);
     onCancel();
   };
 
-  const cleanup = () => {
-    clearInterval(timerRef.current);
-
-    if (mediaRecorderRef.current?.stream) {
-      mediaRecorderRef.current.stream
-        .getTracks()
-        .forEach((track) => track.stop());
-    }
-
-    if (wavesurferRef.current) {
-      wavesurferRef.current.destroy();
-    }
-  };
-
-  const formatTime = (sec) => {
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m}:${s.toString().padStart(2, "0")}`;
+  const formatTime = (seconds) => {
+    const m = String(Math.floor(seconds / 60)).padStart(2, "0");
+    const s = String(seconds % 60).padStart(2, "0");
+    return `${m}:${s}`;
   };
 
   return (
-    <div className="flex flex-col gap-3 w-full bg-blue-600 p-4 rounded-2xl shadow-lg">
+    <div className="flex items-center gap-4 w-full bg-purple-600 px-4 py-2 rounded-2xl animate-in zoom-in-95 duration-200">
+      <button onClick={handleCancel} className="text-white/70 hover:text-white transition-colors">
+        <Trash2 size={18} />
+      </button>
 
-      {/* Top Controls */}
-      <div className="flex items-center gap-4">
+      <div className="flex-1 flex flex-col items-center gap-1">
+        {/* Live Bars */}
+        {isRecording && !recordedBlob ? (
+          <div className="flex gap-1 w-full justify-center h-10">
+            {barHeights.map((h, i) => (
+              <div
+                key={i}
+                className="w-1 bg-white rounded-full"
+                style={{ height: `${h}px`, transition: "height 0.1s" }}
+              ></div>
+            ))}
+          </div>
+        ) : (
+          <div id="waveform" className="w-full h-10"></div>
+        )}
 
-        <button
-          onClick={handleCancel}
-          className="text-white/70 hover:text-white transition"
-        >
-          <Trash2 size={20} />
-        </button>
+        <div className="flex items-center gap-2 mt-1">
+          <span className="text-xs font-mono text-white">{formatTime(timer)}</span>
 
-        <div className="flex-1 text-white font-mono text-sm">
-          {formatTime(seconds)}
+          {!recordedBlob && isRecording && !isPaused && (
+            <button onClick={pauseRecording} className="text-white">
+              <Pause size={16} />
+            </button>
+          )}
+
+          {!recordedBlob && isRecording && isPaused && (
+            <button onClick={resumeRecording} className="text-white">
+              <Play size={16} />
+            </button>
+          )}
+
+          {!recordedBlob && !isRecording && (
+            <button onClick={startRecording} className="text-white">
+              <Mic size={16} />
+            </button>
+          )}
+
+          {recordedBlob && (
+            <button onClick={togglePreviewPlayback} className="text-white">
+              {isPlayingPreview ? <Pause size={16} /> : <Play size={16} />}
+            </button>
+          )}
         </div>
-
-        {isRecording && (
-          <button
-            onClick={handlePauseResume}
-            className="text-white hover:scale-105 transition"
-          >
-            {isPaused ? <Mic size={20} /> : <Pause size={20} />}
-          </button>
-        )}
-
-        {isRecording && (
-          <button
-            onClick={stopRecording}
-            className="bg-white text-blue-600 p-2 rounded-xl"
-          >
-            <Send size={18} />
-          </button>
-        )}
       </div>
 
-      {/* Waveform Preview */}
-      {!isRecording && audioBlob && (
-        <div className="flex items-center gap-3">
-
-          <button
-            onClick={handlePlayPause}
-            className="bg-white text-blue-600 p-2 rounded-xl"
-          >
-            {isPlaying ? <Pause size={18} /> : <Play size={18} />}
-          </button>
-
-          <div
-            ref={waveformRef}
-            className="flex-1"
-          />
-
-          <button
-            onClick={handleSend}
-            className="bg-white text-blue-600 p-2 rounded-xl"
-          >
-            <Send size={18} />
-          </button>
-        </div>
-      )}
+      <button
+        onClick={handleSend}
+        disabled={!recordedBlob}
+        className={`p-2 rounded-xl transition-all ${
+          recordedBlob ? "bg-white text-purple-600 hover:scale-105 active:scale-95" : "bg-white/30 text-white cursor-not-allowed"
+        }`}
+      >
+        <Send size={18} />
+      </button>
     </div>
   );
 };
