@@ -4,7 +4,6 @@ import {
   Mail,
   Lock,
   ArrowRight,
-  Sparkles,
   Camera,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -60,11 +59,14 @@ const Register = () => {
         data.append("profilePic", form.profilePic);
       }
 
-      await api.post("/auth/register", data);
+      const res = await api.post("/auth/register", data);
 
-      navigate("/verify-otp", {
-        state: { email: form.email },
-      });
+      if (res.data?.verifyToken) {
+        sessionStorage.setItem("verifyToken", res.data.verifyToken);
+      }
+
+      navigate("/verify-otp");
+
     } catch (err) {
       setError(err.response?.data?.message || "Registration failed");
     } finally {
@@ -75,7 +77,7 @@ const Register = () => {
   return (
     <div className="min-h-screen bg-[#0f0b1f] flex items-center justify-center relative overflow-hidden">
 
-      {/* Background Glow */}
+      {/* Background Glow (OLD UI PRESERVED) */}
       <div className="absolute w-150 h-150 bg-purple-600/20 rounded-full blur-[140px] -top-50 -left-37.5" />
       <div className="absolute w-125 h-125 bg-purple-500/10 rounded-full blur-[140px] -bottom-37.5 -right-25" />
 
@@ -201,6 +203,7 @@ const Register = () => {
           </button>
         </form>
 
+        {/* Footer (OLD UI PRESERVED) */}
         <div className="mt-6 text-center text-sm text-purple-300/60">
           Already have an account?{" "}
           <a
@@ -210,6 +213,7 @@ const Register = () => {
             Login
           </a>
         </div>
+
       </div>
     </div>
   );
