@@ -11,13 +11,23 @@ export const generateAccessToken = (userId) => {
 export const generateRefreshToken = (userId) => {
     return jwt.sign(
         { userId },
-        process.env.JWT_SECRETE,
+        process.env.REFRESH_TOKEN,
         { expiresIn: "7d" }
     )
 }
 
+export const generateVerifyToken = (userId) => {
+    return jwt.sign(
+        { userId },
+        process.env.VERIFY_TOKEN,   
+        { expiresIn: "10m" }
+    )
+}
+
 export const generateTokens = (userId) => {
+
     const accessToken = generateAccessToken(userId)
     const refreshToken = generateRefreshToken(userId)
-    return { accessToken, refreshToken }
+    return { accessToken, refreshToken }   
+    
 }
