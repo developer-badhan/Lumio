@@ -15,11 +15,24 @@ import TypingIndicator from "../components/chat/TypingIndicator.jsx";
 import Avatar from "../components/ui/Avatar.jsx";
 import EmptyState from "../components/ui/EmptyState.jsx";
 
+
 const mockConversations = [
-  { id: 1, name: "Alex Rivera", status: "online", lastMessage: "Will do, catch you later!" },
-  { id: 2, name: "Sophia Lee", status: "offline", lastMessage: "Let's review the design tomorrow." },
-  { id: 3, name: "Daniel Kim", status: "online", lastMessage: "AI integration looks insane 🚀" },
-  { id: 4, name: "Maya Patel", status: "away", lastMessage: "I'll be there in 10 mins" },
+  { 
+    id: 1, 
+    name: "Alex Rivera", 
+    status: "online", 
+    lastMessage: "Will do, catch you later!",
+    time: "10:30 AM",
+    unread: 2
+  },
+  { 
+    id: 2, 
+    name: "Sophia Lee", 
+    status: "offline", 
+    lastMessage: "Let's review the design tomorrow.",
+    time: "Yesterday",
+    unread: 0
+  },
 ];
 
 const formatTime = () =>
@@ -27,6 +40,14 @@ const formatTime = () =>
     hour: "2-digit",
     minute: "2-digit",
   });
+
+const handleAudioCall = () => {
+  alert(`Calling ${activeChat.name} (Audio)...`);
+};
+
+const handleVideoCall = () => {
+  alert(`Starting video call with ${activeChat.name}...`);
+};
 
 const Dashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -107,7 +128,14 @@ const Dashboard = () => {
 
     setConversations((prev) =>
       prev.map((c) =>
-        c.id === activeChat.id ? { ...c, lastMessage: previewText } : c
+        c.id === activeChat.id
+          ? {
+              ...c,
+              lastMessage: previewText,
+              time: formatTime(),
+              unread: 0,
+            }
+          : c
       )
     );
 
@@ -245,30 +273,44 @@ const Dashboard = () => {
             )}
 
             {filtered.map((chat) => (
-              <button
-                key={chat.id}
-                onClick={() => setActiveChat(chat)}
-                className={`w-full flex gap-3 items-center p-3 rounded-2xl transition
-                ${activeChat.id === chat.id
-                    ? "bg-purple-700/20 border border-purple-500/20"
-                    : "hover:bg-purple-700/10"
-                  }`}
-              >
-                <Avatar name={chat.name} size="sm" status={chat.status} />
-                <div className="flex-1">
-                  <div className="flex justify-between items-center">
-                    <p className="font-semibold text-sm">{chat.name}</p>
-                    {chat.status === "online" && (
-                      <span className="text-[11px] font-bold text-emerald-400">
-                        Now
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-purple-300/60 truncate">
-                    {chat.lastMessage}
-                  </p>
-                </div>
-              </button>
+                <button
+                    key={chat.id}
+                    onClick={() => setActiveChat(chat)}
+                    className={`w-full flex gap-3 items-center p-3 rounded-2xl transition
+                    ${activeChat.id === chat.id
+                        ? "bg-purple-700/20 border border-purple-500/20"
+                        : "hover:bg-purple-700/10"
+                      }`}
+                  >
+                    <Avatar name={chat.name} size="sm" status={chat.status} />
+
+                    <div className="flex-1 min-w-0">
+
+                      {/* TOP ROW */}
+                      <div className="flex justify-between items-center">
+                        <p className="font-semibold text-sm truncate">
+                          {chat.name}
+                        </p>
+
+                        <span className="text-[11px] text-purple-400">
+                          {chat.time}
+                        </span>
+                      </div>
+
+                      {/* BOTTOM ROW */}
+                      <div className="flex justify-between items-center mt-1">
+                        <p className="text-xs text-purple-300/60 truncate">
+                          {chat.lastMessage}
+                        </p>
+
+                        {chat.unread > 0 && (
+                          <span className="bg-purple-600 text-white text-[10px] px-2 py-1 rounded-full ml-2">
+                            {chat.unread}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                </button>
             ))}
           </div>
         </div>
@@ -277,17 +319,36 @@ const Dashboard = () => {
       {/* Main Chat */}
       <main className="flex-1 flex flex-col relative z-10">
 
-        <header className="h-16 flex items-center justify-between px-6 border-b border-purple-500/10 bg-[#151129]">
-          <div className="flex items-center gap-3">
-            <Avatar name={activeChat.name} size="sm" status={activeChat.status} />
-            <div>
-              <p className="font-semibold">{activeChat.name}</p>
-              <span className="text-xs text-purple-300/60">
-                {activeChat.status === "online" ? "Active Now" : activeChat.status}
-              </span>
-            </div>
+      <header className="h-16 flex items-center justify-between px-6 border-b border-purple-500/10 bg-[#151129]">
+
+        {/* LEFT SIDE (User Info) */}
+        <div className="flex items-center gap-3">
+          <Avatar name={activeChat.name} size="sm" status={activeChat.status} />
+          <div>
+            <p className="font-semibold">{activeChat.name}</p>
+            <span className="text-xs text-purple-300/60">
+              {activeChat.status === "online" ? "Active Now" : activeChat.status}
+            </span>
           </div>
-        </header>
+        </div>
+
+        {/* RIGHT SIDE (Call Icons like WhatsApp) */}
+        <div className="flex items-center gap-6 text-purple-300">
+
+      <button onClick={handleAudioCall} className="hover:text-white transition">
+        <Phone size={20} />
+      </button>
+
+      <button onClick={handleVideoCall} className="hover:text-white transition">
+        <Video size={20} />
+      </button>
+
+          <button className="hover:text-white transition">
+            <Info size={20} />
+          </button>
+
+        </div>
+      </header>
 
         <div ref={messagesRef} className="flex-1 overflow-y-auto px-6 py-6 relative">
           <div className="max-w-3xl mx-auto space-y-4">
