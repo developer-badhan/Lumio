@@ -18,6 +18,7 @@ const router = express.Router()
 // Public Routes
 router.post("/register", upload.single("profilePic"), register)
 router.post("/verify-otp", verifyOtp)
+router.post("/otp-resend", otpResend)
 router.post("/login", login)
 router.post("/logout", logout)
 router.post("/refresh-token", refreshToken)

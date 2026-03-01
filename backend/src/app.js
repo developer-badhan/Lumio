@@ -9,15 +9,6 @@ import authRouter from "./routes/auth.route.js"
 // Initialize Express App
 const app = express()
 
-// Built-in Middleware
-app.use(express.json())
-app.use(cookieParser())
-
-
-// Error Handling Middleware
-app.use(errorHandler)
-
-
 // Resource Sharing Middleware
 app.use(cors({
     origin: "http://localhost:5173", // frontend URL
@@ -25,8 +16,19 @@ app.use(cors({
   })
 )
 
+
+// Built-in Middleware
+app.use(express.json())
+app.use(cookieParser())
+
+
 // Use the  Routes
 app.use("/api/auth", authRouter)
+
+
+// Error Handling Middleware
+app.use(errorHandler)
+
 
 
 
