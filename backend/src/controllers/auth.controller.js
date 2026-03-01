@@ -1,7 +1,7 @@
 import User from "../models/user.model.js"
 import { uploadProfileImg, deleteProfileImg } from "../services/cloudinary.service.js"
-import { sendOtpEmail, sendWelcomeEmail, sendLoginNotificationEmail } from "../services/email.service.js"
-import { generateTokens, generateAccessToken } from "../utils/generateToken.js"
+import { sendOtpEmail, sendWelcomeEmail, sendLoginNotificationEmail, sendPasswordChangeNotificationEmail  } from "../services/email.service.js"
+import { generateTokens, generateAccessToken, generateVerifyToken } from "../utils/generateToken.js"
 import { generateOtp } from "../utils/generateOtp.js"
 import jwt from "jsonwebtoken"
 import fs from "fs"
@@ -34,7 +34,6 @@ export const register = async (req, res) => {
             })
         }
 
-        // Handle optional profile picture upload
         let profilePic = ""
         let profilePicPublicId = ""
 
@@ -54,27 +53,28 @@ export const register = async (req, res) => {
             }
         }
 
-        // Generate plain OTP — model pre-save hook will hash it before storing
         const otp = generateOtp()
 
         const user = new User({
             name,
             email,
             password,
-            otp,                                        
-            otpExpire: Date.now() + 10 * 60 * 1000,    
+            otp,
+            otpExpire: Date.now() + 10 * 60 * 1000,
             profilePic,
             profilePicPublicId
         })
 
         await user.save()
 
-        // Send OTP to user's email using the plain OTP 
         await sendOtpEmail(user.email, user.name, otp)
+
+        const verifyToken = generateVerifyToken(user._id)
 
         return res.status(201).json({
             success: true,
             message: "User registered successfully. Please verify the OTP sent to your email.",
+            verifyToken
         })
 
     } catch (error) {
@@ -88,20 +88,40 @@ export const register = async (req, res) => {
 }
 
 
-// OTP Verifiction controller
+// OTP Verification Controller (Token-Based)
 export const verifyOtp = async (req, res) => {
     try {
-        const { email, otp } = req.body
+        const authHeader = req.headers.authorization
 
-        if (!email || !otp) {
-            return res.status(400).json({
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+            return res.status(401).json({
                 success: false,
-                message: "Email and OTP are required"
+                message: "Verification token missing or invalid"
             })
         }
 
-        // Select +otp so we can compare (it's select:false by default)
-        const user = await User.findOne({ email }).select("+otp")
+        const token = authHeader.split(" ")[1]
+
+        let decoded
+        try {
+            decoded = jwt.verify(token, process.env.VERIFY_TOKEN)
+        } catch (err) {
+            return res.status(401).json({
+                success: false,
+                message: "Verification session expired. Please register again."
+            })
+        }
+
+        const { otp } = req.body
+
+        if (!otp) {
+            return res.status(400).json({
+                success: false,
+                message: "OTP is required"
+            })
+        }
+
+        const user = await User.findById(decoded.userId).select("+otp")
 
         if (!user) {
             return res.status(404).json({
@@ -120,12 +140,12 @@ export const verifyOtp = async (req, res) => {
         if (!user.otp || user.otpExpire < Date.now()) {
             return res.status(400).json({
                 success: false,
-                message: "OTP has expired. Please request a new one."
+                message: "OTP has expired. Please resend a new one."
             })
         }
 
-        // Compare entered OTP with the hashed OTP stored in DB
         const isOtpValid = await user.compareOtp(otp)
+
         if (!isOtpValid) {
             return res.status(400).json({
                 success: false,
@@ -133,18 +153,83 @@ export const verifyOtp = async (req, res) => {
             })
         }
 
-        // Mark account as verified and clear OTP fields
         user.isVerified = true
         user.otp = null
         user.otpExpire = null
         await user.save()
 
-        // Send welcome email after successful verification
         await sendWelcomeEmail(user.email, user.name)
 
         return res.status(200).json({
             success: true,
-            message: "Account verified successfully. Welcome to Lumio!",
+            message: "Account verified successfully!"
+        })
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Internal server error"
+        })
+    }
+}
+
+
+// OTP Resend Controller
+export const otpResend = async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization
+
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+            return res.status(401).json({
+                success: false,
+                message: "Verification token missing or invalid"
+            })
+        }
+
+        const token = authHeader.split(" ")[1]
+
+        let decoded
+        try {
+            decoded = jwt.verify(token, process.env.VERIFY_TOKEN)
+        } catch (err) {
+            return res.status(401).json({
+                success: false,
+                message: "Verification session expired. Please register again."
+            })
+        }
+
+        const user = await User.findById(decoded.userId)
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            })
+        }
+
+        if (user.isVerified) {
+            return res.status(400).json({
+                success: false,
+                message: "Account is already verified"
+            })
+        }
+
+        // Generate new OTP
+        const otp = generateOtp()
+
+        user.otp = otp
+        user.otpExpire = Date.now() + 10 * 60 * 1000
+
+        await user.save()
+
+        await sendOtpEmail(user.email, user.name, otp)
+
+        const newVerifyToken = generateVerifyToken(user._id)
+
+        return res.status(200).json({
+            success: true,
+            message: "New OTP sent to your email.",
+            verifyToken: newVerifyToken
         })
 
     } catch (error) {
@@ -237,7 +322,7 @@ export const refreshToken = async (req, res) => {
             })
         }
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRETE)
+        const decoded = jwt.verify(token, process.env.REFRESH_TOKEN)
 
         const user = await User.findById(decoded.userId)
         if (!user) {
@@ -362,3 +447,50 @@ export const changeProfilePic = async (req, res) => {
     }
 }
 
+
+// Change Password Controller
+export const changePassword = async (req, res) => {
+    try {
+        const { currentPassword, newPassword, confirmNewPassword } = req.body
+
+        if (!currentPassword || !newPassword || !confirmNewPassword) {
+            return res.status(400).json({
+                success: false,
+                message: "Please fill all fields"
+            })
+        }
+
+        if (newPassword !== confirmNewPassword) {
+            return res.status(400).json({
+                success: false,
+                message: "New passwords do not match"
+            })
+        }
+
+        const user = await User.findById(req.user._id).select("+password")
+
+        const isMatch = await user.comparePassword(currentPassword)
+        if (!isMatch) {
+            return res.status(401).json({
+                success: false,
+                message: "Current password is incorrect"
+            })
+        }
+
+        user.password = newPassword
+        await user.save()   // pre-save hook will hash it
+
+        await sendPasswordChangeNotificationEmail(user.email, user.name);
+
+        return res.status(200).json({
+            success: true,
+            message: "Password changed successfully"
+        })
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Internal server error"
+        })
+    }
+}

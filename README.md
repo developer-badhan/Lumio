@@ -134,6 +134,7 @@ MONGODB_URL=your-database-url
 # Token secrete
 ACCESS_TOKEN=your-access-token
 REFRESH_TOKEN=your-refresh-token
+VERIFY_TOKEN=your-verify-token
 
 # Cloudinary
 CLOUDINARY_CLOUD_NAME=your_cloud_name
