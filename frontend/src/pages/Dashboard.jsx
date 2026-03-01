@@ -1,135 +1,337 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  Search,
+  Settings,
+  Phone,
+  Video,
+  Info,
+  ChevronLeft,
+} from "lucide-react";
+
+import ChatBubble from "../components/chat/ChatBubble.jsx";
+import MessageInput from "../components/chat/MessageInput.jsx";
+import TypingIndicator from "../components/chat/TypingIndicator.jsx";
+import Avatar from "../components/ui/Avatar.jsx";
+import EmptyState from "../components/ui/EmptyState.jsx";
+
+const mockConversations = [
+  { id: 1, name: "Alex Rivera", status: "online", lastMessage: "Will do, catch you later!" },
+  { id: 2, name: "Sophia Lee", status: "offline", lastMessage: "Let's review the design tomorrow." },
+  { id: 3, name: "Daniel Kim", status: "online", lastMessage: "AI integration looks insane 🚀" },
+  { id: 4, name: "Maya Patel", status: "away", lastMessage: "I'll be there in 10 mins" },
+];
+
+const formatTime = () =>
+  new Date().toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
 const Dashboard = () => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [activeChat, setActiveChat] = useState(mockConversations[0]);
+  const [conversations, setConversations] = useState(mockConversations);
+  const [search, setSearch] = useState("");
+
+  const [messages, setMessages] = useState([
+    {
+      id: 1,
+      text: "Hey! Have you seen the updated design system?",
+      attachments: [],
+      isMe: false,
+      timestamp: "10:00 AM",
+    },
+    {
+      id: 2,
+      text: "It's looking incredible!",
+      attachments: [],
+      isMe: true,
+      timestamp: "10:02 AM",
+      status: "read",
+    },
+  ]);
+
+  const [isTyping, setIsTyping] = useState(false);
+
+  const messagesRef = useRef(null);
+
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 1024px)");
+    setSidebarOpen(!mql.matches);
+  }, []);
+
+  useEffect(() => {
+    if (messagesRef.current) {
+      messagesRef.current.scrollTo({
+        top: messagesRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+  }, [messages]);
+
+  const normalizeFiles = (files) => {
+    return files.map((file) => {
+      if (file instanceof Blob && !(file instanceof File)) {
+        return new File([file], "voice-message.webm", {
+          type: file.type || "audio/webm",
+        });
+      }
+      return file;
+    });
+  };
+
+  const handleSendMessage = (data) => {
+    const normalizedFiles = normalizeFiles(data.files || []);
+
+    const newMessage = {
+      id: Date.now(),
+      text: data.text || "",
+      attachments: normalizedFiles,
+      isMe: true,
+      timestamp: formatTime(),
+      status: "sent",
+    };
+
+    setMessages((prev) => [...prev, newMessage]);
+
+    const previewText =
+      data.text ||
+      (normalizedFiles.length > 0
+        ? normalizedFiles[0].type.startsWith("image/")
+          ? "📷 Image"
+          : normalizedFiles[0].type.startsWith("audio/")
+          ? "🎙 Voice message"
+          : "📎 Attachment"
+        : "");
+
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === activeChat.id ? { ...c, lastMessage: previewText } : c
+      )
+    );
+
+    setIsTyping(true);
+
+    setTimeout(() => {
+      setIsTyping(false);
+
+      const replyMessage = {
+        id: Date.now() + 1,
+        text: "Got it 👍",
+        attachments: [],
+        isMe: false,
+        timestamp: formatTime(),
+      };
+
+      setMessages((prev) => [...prev, replyMessage]);
+    }, 2000);
+
+    setTimeout(() => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === newMessage.id ? { ...m, status: "delivered" } : m
+        )
+      );
+    }, 1000);
+
+    setTimeout(() => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === newMessage.id ? { ...m, status: "read" } : m
+        )
+      );
+    }, 2500);
+  };
+
+  const filtered = conversations.filter(
+    (c) =>
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.lastMessage.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const renderAttachments = (attachments) => {
+    return attachments.map((file, index) => {
+      const url = URL.createObjectURL(file);
+
+      if (file.type.startsWith("image/")) {
+        return (
+          <img
+            key={index}
+            src={url}
+            alt="attachment"
+            className="mt-2 rounded-2xl max-w-xs border border-purple-500/20 shadow-lg"
+          />
+        );
+      }
+
+      if (file.type.startsWith("audio/")) {
+        return (
+          <audio key={index} controls src={url} className="mt-2 w-64" />
+        );
+      }
+
+      return (
+        <a
+          key={index}
+          href={url}
+          download={file.name}
+          className="mt-2 inline-block text-sm text-purple-400 underline"
+        >
+          📎 {file.name}
+        </a>
+      );
+    });
+  };
 
   return (
-    <div className="h-screen w-full bg-white dark:bg-gray-950 flex overflow-hidden text-gray-900 dark:text-white transition-colors duration-300">
-      
-      {/* Sidebar overlay for mobile */}
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-sm z-20 md:hidden transition-opacity"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
+    <div className="h-screen w-screen flex bg-[#0f0b1f] text-white relative overflow-hidden">
 
-      {/* Sidebar - Chat List */}
-      <aside className={`fixed md:relative z-30 w-80 h-full bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transform transition-transform duration-300 ease-in-out flex flex-col ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-        
-        {/* Sidebar Header */}
-        <div className="h-16 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-linear-to-br from-purple-500 to-purple-700 shadow-sm flex items-center justify-center">
-              <span className="text-white font-bold text-sm">C</span>
-            </div>
-            <h1 className="font-semibold">Chats</h1>
-          </div>
-          {/* Dark Mode / Settings Toggles go here */}
-        </div>
+      {/* Animated background like Telegram */}
+      <div className="absolute inset-0 bg-linear-to-br from-purple-900/10 via-black to-purple-800/10 animate-pulse opacity-40" />
 
-        {/* Search Bar */}
-        <div className="p-3">
-          <div className="relative group">
-            <input 
-              type="text" 
-              placeholder="Search or start new chat" 
-              className="w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
-            />
-            <svg className="w-4 h-4 text-gray-400 absolute left-3 top-2.5 group-focus-within:text-purple-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-          </div>
-        </div>
+      {/* Sidebar */}
+      <aside
+        className={`bg-[#151129] border-r border-purple-500/10 transition-all duration-300 z-30
+        ${sidebarOpen ? "w-80" : "w-0 lg:w-80 overflow-hidden"}`}
+      >
+        <div className="flex flex-col h-full">
 
-        {/* Chat List (Scrollable) */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
-          {/* Dummy Chat Item */}
-          <div className="flex items-center gap-3 p-3 mx-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer transition-colors active:scale-[0.99]">
-            <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700 shrink-0 relative">
-              <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-gray-900 rounded-full"></span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex justify-between items-baseline mb-0.5">
-                <h3 className="font-medium text-sm truncate">Sarah Jenkins</h3>
-                <span className="text-xs text-gray-500">10:42 AM</span>
+          {/* Header with icon + Lumio */}
+          <div className="px-5 py-5 border-b border-purple-500/10 flex items-center justify-between">
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-linear-to-br from-purple-500 to-purple-700 flex items-center justify-center shadow-lg shadow-purple-900/40">
+                <svg viewBox="0 0 24 24" className="w-6 h-6" fill="white">
+                  <path d="M12 3C6.477 3 2 6.94 2 11.5c0 2.63 1.4 4.98 3.6 6.5L4 22l4.3-2.3c1.14.32 2.36.5 3.7.5 5.523 0 10-3.94 10-8.5S17.523 3 12 3z" />
+                </svg>
               </div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 truncate">Hey! Have you seen the new design?</p>
+              <h2 className="font-bold text-xl tracking-wide">Lumio</h2>
             </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="p-2 hover:bg-purple-700/10 rounded-lg transition"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <Link to="/settings" className="p-2 hover:bg-purple-700/10 rounded-lg transition">
+                <Settings size={18} />
+              </Link>
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="p-4">
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-3 text-purple-400" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search conversations"
+                className="w-full bg-[#1d1736] text-white placeholder-purple-300/50 border border-purple-500/20 focus:border-purple-500 focus:ring-2 focus:ring-purple-600/30 transition rounded-xl py-2 pl-10 pr-4 outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Conversations */}
+          <div className="flex-1 overflow-y-auto px-3 space-y-2">
+            {filtered.length === 0 && (
+              <EmptyState
+                title="No conversations"
+                description="Start chatting to see messages here."
+              />
+            )}
+
+            {filtered.map((chat) => (
+              <button
+                key={chat.id}
+                onClick={() => setActiveChat(chat)}
+                className={`w-full flex gap-3 items-center p-3 rounded-2xl transition
+                ${activeChat.id === chat.id
+                    ? "bg-purple-700/20 border border-purple-500/20"
+                    : "hover:bg-purple-700/10"
+                  }`}
+              >
+                <Avatar name={chat.name} size="sm" status={chat.status} />
+                <div className="flex-1">
+                  <div className="flex justify-between items-center">
+                    <p className="font-semibold text-sm">{chat.name}</p>
+                    {chat.status === "online" && (
+                      <span className="text-[11px] font-bold text-emerald-400">
+                        Now
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-purple-300/60 truncate">
+                    {chat.lastMessage}
+                  </p>
+                </div>
+              </button>
+            ))}
           </div>
         </div>
       </aside>
 
-      {/* Main Chat Area */}
-      <main className="flex-1 flex flex-col min-w-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] dark:bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] bg-opacity-5">
-        
-        {/* Chat Header */}
-        <header className="h-16 border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-950/80 backdrop-blur-md flex items-center px-4 shrink-0 z-10 sticky top-0">
-          <button 
-            className="mr-3 md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-          </button>
-          
+      {/* Main Chat */}
+      <main className="flex-1 flex flex-col relative z-10">
+
+        <header className="h-16 flex items-center justify-between px-6 border-b border-purple-500/10 bg-[#151129]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700"></div>
+            <Avatar name={activeChat.name} size="sm" status={activeChat.status} />
             <div>
-              <h2 className="font-semibold text-sm">Sarah Jenkins</h2>
-              <p className="text-xs text-purple-600 font-medium">Online</p>
+              <p className="font-semibold">{activeChat.name}</p>
+              <span className="text-xs text-purple-300/60">
+                {activeChat.status === "online" ? "Active Now" : activeChat.status}
+              </span>
             </div>
           </div>
         </header>
 
-        {/* Chat Messages (Scrollable) */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* Example Chat Bubbles would go here */}
+        <div ref={messagesRef} className="flex-1 overflow-y-auto px-6 py-6 relative">
+          <div className="max-w-3xl mx-auto space-y-4">
+            {messages.map((msg) => (
+              <div key={msg.id} className="animate-fadeIn">
+                {msg.text && (
+                  <ChatBubble
+                    message={msg.text}
+                    isMe={msg.isMe}
+                    timestamp={msg.timestamp}
+                    status={msg.status}
+                    username={!msg.isMe ? activeChat.name : undefined}
+                    avatar={!msg.isMe ? `https://i.pravatar.cc/150?u=${activeChat.id}` : undefined}
+                  />
+                )}
+
+                {msg.attachments?.length > 0 && (
+                  <div className={`${msg.isMe ? "flex justify-end" : ""}`}>
+                    <div className="max-w-xs">
+                      {renderAttachments(msg.attachments)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+            <TypingIndicator
+              username={activeChat.name}
+              isActive={isTyping}
+            />
+          </div>
         </div>
 
-        {/* Sticky Input Area */}
-        <footer className="p-4 bg-white/80 dark:bg-gray-950/80 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 shrink-0">
-          <div className="max-w-4xl mx-auto flex items-end gap-2">
-            <button className="p-2.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-gray-800 rounded-full transition-colors">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            </button>
-            <div className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center">
-              <textarea 
-                rows="1"
-                placeholder="Type a message..."
-                className="w-full bg-transparent border-none py-3 px-4 focus:ring-0 resize-none max-h-32 text-sm outline-none"
-              ></textarea>
-            </div>
-            <button className="p-3 bg-purple-600 hover:bg-purple-700 text-white rounded-full shadow-md shadow-purple-500/20 active:scale-95 transition-all">
-              <svg className="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg>
-            </button>
+        <footer className="p-4 border-t border-purple-500/10 bg-[#151129]">
+          <div className="max-w-3xl mx-auto flex items-center">
+            <MessageInput onSendMessage={handleSendMessage} />
           </div>
+          <p className="text-center text-xs text-purple-300/50 mt-2">
+            End-to-end encrypted · Messages are private
+          </p>
         </footer>
+
       </main>
     </div>
   );
 };
 
 export default Dashboard;
-
-
-
-// import { useAuth } from "../context/AuthContext"
-// import axios from "../services/axios"
-
-// const Dashboard = () => {
-//   const { user } = useAuth()
-
-//   const logout = async () => {
-//     await axios.post("/auth/logout")
-//     window.location.href = "/login"
-//   }
-
-//   return (
-//     <div className="p-6">
-//       <h1 className="text-2xl">Welcome {user?.name}</h1>
-//       <button onClick={logout} className="bg-red-500 text-white p-2 mt-4">
-//         Logout
-//       </button>
-//     </div>
-//   )
-// }
-
-// export default Dashboard
