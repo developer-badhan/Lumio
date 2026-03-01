@@ -90,3 +90,24 @@ export const sendLoginNotificationEmail = async (email, name) => {
     html,
   })
 }
+
+// Password Change Notification
+export const sendPasswordChangeNotificationEmail = async (email, name) => {
+  const subject = "Your Lumio Password Was Changed 🔒";
+
+  const html = `
+    <h2>Hello ${name},</h2>
+    <p>Your Lumio account password was successfully changed.</p>
+    <p>If you made this change, you can safely ignore this email.</p>
+    <p><strong>If you did NOT change your password, please reset it immediately and contact support.</strong></p>
+    <br/>
+    <p>Stay secure,</p>
+    <p><strong>The Lumio Team</strong></p>
+  `;
+
+  return await sendEmail({
+    to: email,
+    subject,
+    html,
+  });
+};
