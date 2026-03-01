@@ -1,21 +1,14 @@
 import React, { useState } from "react";
-import {
-  Mail,
-  Lock,
-  ArrowRight,
-  Sparkles,
-} from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Mail, Lock, ArrowRight } from "lucide-react";
+import { useNavigate, Link } from "react-router-dom";
 import api from "../services/axios";
+import { useAuth } from "../context/AuthContext.jsx"; 
 
 const Login = () => {
   const navigate = useNavigate();
+  const { login } = useAuth(); 
 
-  const [form, setForm] = useState({
-    email: "",
-    password: "",
-  });
-
+  const [form, setForm] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -31,24 +24,17 @@ const Login = () => {
       setLoading(true);
 
       const res = await api.post("/auth/login", form);
+      login(res.data.accessToken, res.data.user);
 
-      // Save access token
-      localStorage.setItem("token", res.data.accessToken);
-
-      // Navigate to dashboard or home
-      navigate("/");
+      navigate("/dashboard");
 
     } catch (err) {
-      const message = err.response?.data?.message;
-
       if (err.response?.status === 403) {
-        // Not verified
-        navigate("/verify-otp", {
-          state: { email: form.email },
-        });
-      } else {
-        setError(message || "Login failed");
+        setError("Please verify your account first.");
+        navigate("/register");
+        return;
       }
+      setError(err.response?.data?.message || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -57,38 +43,25 @@ const Login = () => {
   return (
     <div className="min-h-screen bg-[#0f0b1f] flex items-center justify-center relative overflow-hidden">
 
-      {/* Background Glow */}
       <div className="absolute w-150 h-150 bg-purple-600/20 rounded-full blur-[140px] -top-50 -left-37.5" />
       <div className="absolute w-125 h-125 bg-purple-500/10 rounded-full blur-[140px] -bottom-37.5 -right-25" />
 
       <div className="w-full max-w-md bg-[#151129] border border-purple-500/10 shadow-2xl shadow-purple-900/30 rounded-3xl p-10 relative z-10">
 
-        {/* Header */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-6">
             <div className="w-20 h-20 rounded-full bg-linear-to-br from-purple-500 to-purple-700 flex items-center justify-center shadow-xl shadow-purple-900/40">
-              <svg
-                viewBox="0 0 24 24"
-                className="w-11 h-11"
-                fill="white"
-                  >
-                  <path d="M12 3C6.477 3 2 6.94 2 11.5c0 2.63 1.4 4.98 3.6 6.5L4 22l4.3-2.3c1.14.32 2.36.5 3.7.5 5.523 0 10-3.94 10-8.5S17.523 3 12 3z"/>
+              <svg viewBox="0 0 24 24" className="w-11 h-11" fill="white">
+                <path d="M12 3C6.477 3 2 6.94 2 11.5c0 2.63 1.4 4.98 3.6 6.5L4 22l4.3-2.3c1.14.32 2.36.5 3.7.5 5.523 0 10-3.94 10-8.5S17.523 3 12 3z" />
               </svg>
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-white">
-            Welcome Back
-          </h1>
-
-          <p className="text-purple-300/70 mt-2 text-sm">
-            Sign in to continue to Lumio
-          </p>
+          <h1 className="text-3xl font-bold text-white">Welcome Back</h1>
+          <p className="text-purple-300/70 mt-2 text-sm">Sign in to continue</p>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
 
-          {/* Email */}
           <div className="relative">
             <Mail className="absolute left-3 top-3 text-purple-400" size={18} />
             <input
@@ -102,7 +75,6 @@ const Login = () => {
             />
           </div>
 
-          {/* Password */}
           <div className="relative">
             <Lock className="absolute left-3 top-3 text-purple-400" size={18} />
             <input
@@ -116,11 +88,14 @@ const Login = () => {
             />
           </div>
 
-          {error && (
-            <p className="text-red-400 text-sm text-center">{error}</p>
-          )}
+          <div className="text-right text-sm">
+            <Link to="/change-password" className="text-purple-400 hover:text-purple-300 font-medium">
+              Change Password?
+            </Link>
+          </div>
 
-          {/* Button */}
+          {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+
           <button
             type="submit"
             disabled={loading}
@@ -131,16 +106,13 @@ const Login = () => {
           </button>
         </form>
 
-        {/* Footer */}
         <div className="mt-6 text-center text-sm text-purple-300/60">
-          Don’t have an account?{" "}
-          <a
-            href="/register"
-            className="text-purple-400 hover:text-purple-300 font-medium"
-          >
+          Don't have an account?{" "}
+          <a href="/register" className="text-purple-400 hover:text-purple-300 font-medium">
             Sign up
           </a>
         </div>
+
       </div>
     </div>
   );
