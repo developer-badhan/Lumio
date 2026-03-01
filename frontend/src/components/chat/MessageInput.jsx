@@ -14,6 +14,7 @@ const MessageInput = ({ onSendMessage }) => {
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
 
+  // Auto resize textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -21,6 +22,13 @@ const MessageInput = ({ onSendMessage }) => {
         textareaRef.current.scrollHeight + "px";
     }
   }, [text]);
+
+  // Close emoji picker when recording starts
+  useEffect(() => {
+    if (isRecording) {
+      setShowEmojiPicker(false);
+    }
+  }, [isRecording]);
 
   const handleSend = () => {
     if (!text.trim() && files.length === 0) return;
@@ -83,14 +91,31 @@ const MessageInput = ({ onSendMessage }) => {
     setShowEmojiPicker(false);
   };
 
+  // 🔥 Voice recorder integration improvement
+  const handleVoiceSend = (audioBlob) => {
+    const audioFile = new File([audioBlob], "voice-message.webm", {
+      type: audioBlob.type || "audio/webm",
+    });
+
+    onSendMessage({
+      text: "",
+      files: [audioFile],
+    });
+
+    setIsRecording(false);
+  };
+
+  const handleStartRecording = () => {
+    setText("");
+    setFiles([]);
+    setIsRecording(true);
+  };
+
   if (isRecording) {
     return (
       <VoiceRecorder
         onCancel={() => setIsRecording(false)}
-        onSend={(audioBlob) => {
-          onSendMessage({ text: "", files: [audioBlob] });
-          setIsRecording(false);
-        }}
+        onSend={handleVoiceSend}
       />
     );
   }
@@ -121,7 +146,6 @@ const MessageInput = ({ onSendMessage }) => {
         onDrop={handleDrop}
         className="flex items-end gap-3 bg-[#1d1736] px-4 py-3 rounded-2xl border border-purple-500/20 focus-within:ring-2 focus-within:ring-purple-600/30 transition"
       >
-
         {/* Attachment Button */}
         <button
           onClick={() => fileInputRef.current?.click()}
@@ -168,7 +192,7 @@ const MessageInput = ({ onSendMessage }) => {
         {/* Mic or Send */}
         {!text.trim() && files.length === 0 ? (
           <button
-            onClick={() => setIsRecording(true)}
+            onClick={handleStartRecording}
             className="text-purple-300/70 hover:text-purple-400 transition"
           >
             <Mic size={18} />
@@ -176,7 +200,7 @@ const MessageInput = ({ onSendMessage }) => {
         ) : (
           <button
             onClick={handleSend}
-            className="p-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-blue-500/20 transition active:scale-95"
+            className="p-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-purple-900/30 transition active:scale-95"
           >
             <Send size={16} />
           </button>
