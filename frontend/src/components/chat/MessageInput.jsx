@@ -176,7 +176,7 @@ const MessageInput = ({ onSendMessage }) => {
         ) : (
           <button
             onClick={handleSend}
-            className="p-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-500/20 transition active:scale-95"
+            className="p-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-blue-500/20 transition active:scale-95"
           >
             <Send size={16} />
           </button>

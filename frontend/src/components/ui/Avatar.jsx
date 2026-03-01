@@ -1,21 +1,56 @@
 import React from 'react';
 
-const Avatar = ({ src, name, size = 'md', isOnline }) => {
+const Avatar = ({ src, name = "User", size = "md", status = "online", className = "" }) => {
+  // Size Mapping
   const sizes = {
-    sm: "w-8 h-8 text-xs",
-    md: "w-10 h-10 text-sm",
-    lg: "w-12 h-12 text-base"
+    xs: "h-6 w-6 text-[10px]",
+    sm: "h-8 w-8 text-xs",
+    md: "h-10 w-10 text-sm",
+    lg: "h-14 w-14 text-base",
+    xl: "h-20 w-20 text-lg",
   };
 
-  const initials = name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  // Status Colors
+  const statusColors = {
+    online: "bg-emerald-500",
+    away: "bg-amber-400",
+    dnd: "bg-rose-500",
+    offline: "bg-slate-400",
+  };
+
+  const initials = name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
-    <div className="relative shrink-0">
-      <div className={`${sizes[size]} rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 font-bold overflow-hidden border border-purple-200/50 dark:border-purple-700/50`}>
-        {src ? <img src={src} alt={name} className="w-full h-full object-cover" /> : initials}
+    <div className={`relative inline-flex shrink-0 ${className}`}>
+      <div className={`
+        ${sizes[size]} 
+        rounded-2xl overflow-hidden flex items-center justify-center font-bold tracking-tighter
+        bg-linear-to-br from-slate-100 to-slate-200 dark:from-white/10 dark:to-white/5
+        text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-white/10
+      `}>
+        {src ? (
+          <img 
+            src={src} 
+            alt={name} 
+            className="h-full w-full object-cover transition-opacity duration-300"
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
+        ) : (
+          <span>{initials}</span>
+        )}
       </div>
-      {isOnline !== undefined && (
-        <span className={`absolute bottom-0 right-0 w-3 h-3 border-2 border-white dark:border-gray-950 rounded-full ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`} />
+      
+      {/* Status Dot */}
+      {status && (
+        <span className={`
+          absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white dark:border-[#0a0a0a]
+          ${statusColors[status]}
+        `} />
       )}
     </div>
   );
