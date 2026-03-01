@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './Context/AuthContext.jsx';
 import { ChatProvider } from './Context/ChatContext.jsx';
@@ -10,9 +9,11 @@ import Register from './pages/Register.jsx';
 import VerifyOtp from './pages/VerifyOtp.jsx';
 import Settings from './pages/Settings.jsx';
 
-
 const ProtectedRoute = ({ children }) => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  if (loading) return null;
+
   return user ? children : <Navigate to="/login" />;
 };
 
@@ -27,13 +28,13 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/verify-otp" element={<VerifyOtp />} />
               <Route path="/change-password" element={<ChangePassword />} />
-              <Route 
-                path="/dashboard" 
+              <Route
+                path="/dashboard"
                 element={
                   <ProtectedRoute>
                     <Dashboard />
                   </ProtectedRoute>
-                } 
+                }
               />
               <Route path="/" element={<Navigate to="/dashboard" />} />
               <Route path="/settings" element={<Settings />} />
@@ -45,19 +46,4 @@ function App() {
   );
 }
 
-
 export default App;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
