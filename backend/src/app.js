@@ -30,6 +30,4 @@ app.use("/api/auth", authRouter)
 app.use(errorHandler)
 
 
-
-
 export default app
