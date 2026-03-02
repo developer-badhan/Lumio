@@ -1,7 +1,7 @@
 import express from "express"
 import cookieParser from "cookie-parser"
 import cors from "cors"
-import errorHandler from "./middleware/errorMiddleware.js"
+import errorHandler from "./middleware/error.middleware.js"
 
 // Import the  Routes
 import authRouter from "./routes/auth.route.js"
