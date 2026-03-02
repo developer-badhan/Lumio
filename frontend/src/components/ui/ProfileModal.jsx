@@ -1,76 +1,95 @@
-import React, { useState } from 'react';
-import Modal from '../ui/Modal';
-import Input from '../ui/Input';
-import Button from '../ui/Button';
-import Avatar from '../ui/Avatar';
+import React from 'react';
+import { X, Camera, LogOut, Bell, Shield, User } from 'lucide-react';
+import { useAuth } from '../../Context/AuthContext';
 
 const ProfileModal = ({ isOpen, onClose }) => {
-  const [loading, setLoading] = useState(false);
-  const [profile, setProfile] = useState({
-    name: 'Sarah Jenkins',
-    email: 'sarah.j@example.com',
-    bio: 'Product Designer at Vercel. Coffee lover ☕️'
-  });
+  const { user, logout } = useAuth();
 
-  const handleSave = async () => {
-    setLoading(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setLoading(false);
-    onClose();
-  };
+  if (!isOpen) return null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Profile Settings">
-      <div className="space-y-6">
-        {/* Avatar Upload Section */}
-        <div className="flex flex-col items-center gap-4">
-          <div className="group relative">
-            <Avatar size="lg" name={profile.name} src={null} />
-            <label className="absolute inset-0 flex items-center justify-center bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity duration-200">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <input type="file" className="hidden" />
-            </label>
-          </div>
-          <div className="text-center">
-            <h4 className="font-semibold text-gray-900 dark:text-white">Profile Photo</h4>
-            <p className="text-xs text-gray-500">JPG, GIF or PNG. Max size of 2MB</p>
-          </div>
+    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 sm:p-6">
+      {/* Backdrop */}
+      <div 
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300"
+        onClick={onClose}
+      />
+      
+      {/* Modal Card */}
+      <div className="relative w-full max-w-md bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+        
+        {/* Header/Banner */}
+        <div className="h-24 bg-linear-to-r from-blue-600 to-indigo-600 relative">
+          <button 
+            onClick={onClose}
+            className="absolute top-4 right-4 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full transition-colors"
+          >
+            <X size={18} />
+          </button>
         </div>
 
-        {/* Form Fields */}
-        <div className="space-y-4">
-          <Input 
-            label="Full Name" 
-            value={profile.name} 
-            onChange={(e) => setProfile({...profile, name: e.target.value})}
-          />
-          <Input 
-            label="Email Address" 
-            type="email" 
-            value={profile.email} 
-            disabled 
-          />
-          <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">About</label>
-            <textarea 
-              className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all resize-none h-24 text-sm"
-              value={profile.bio}
-              onChange={(e) => setProfile({...profile, bio: e.target.value})}
-            />
+        {/* Profile Content */}
+        <div className="px-8 pb-8">
+          <div className="relative -mt-12 mb-6">
+            <div className="inline-block relative">
+              <img 
+                src={user?.avatar || `https://ui-avatars.com/api/?name=${user?.name || 'User'}&background=random`} 
+                className="w-24 h-24 rounded-3xl border-4 border-white dark:border-[#0f0f0f] shadow-lg object-cover"
+                alt="Profile"
+              />
+              <button className="absolute bottom-0 right-0 p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-xl shadow-md hover:scale-110 transition-transform">
+                <Camera size={14} className="text-slate-600 dark:text-slate-300" />
+              </button>
+            </div>
           </div>
-        </div>
 
-        {/* Footer Actions */}
-        <div className="flex gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" loading={loading} onClick={handleSave}>Save Changes</Button>
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold">{user?.name || "Guest User"}</h2>
+            <p className="text-slate-500 text-sm">{user?.email || "guest@lumio.app"}</p>
+          </div>
+
+          {/* Settings List */}
+          <div className="space-y-2">
+            <button className="w-full flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-white/5 rounded-2xl transition-colors group">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-slate-100 dark:bg-white/5 rounded-lg text-slate-600 dark:text-slate-400 group-hover:text-blue-500 transition-colors">
+                  <User size={18} />
+                </div>
+                <span className="font-medium text-sm text-slate-700 dark:text-slate-300">Edit Profile</span>
+              </div>
+            </button>
+
+            <button className="w-full flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-white/5 rounded-2xl transition-colors group">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-slate-100 dark:bg-white/5 rounded-lg text-slate-600 dark:text-slate-400 group-hover:text-blue-500 transition-colors">
+                  <Bell size={18} />
+                </div>
+                <span className="font-medium text-sm text-slate-700 dark:text-slate-300">Notifications</span>
+              </div>
+            </button>
+
+            <button className="w-full flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-white/5 rounded-2xl transition-colors group">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-slate-100 dark:bg-white/5 rounded-lg text-slate-600 dark:text-slate-400 group-hover:text-blue-500 transition-colors">
+                  <Shield size={18} />
+                </div>
+                <span className="font-medium text-sm text-slate-700 dark:text-slate-300">Privacy & Security</span>
+              </div>
+            </button>
+          </div>
+
+          <hr className="my-6 border-slate-100 dark:border-white/5" />
+
+          <button 
+            onClick={logout}
+            className="w-full flex items-center gap-3 p-4 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-2xl transition-all font-semibold"
+          >
+            <LogOut size={18} />
+            <span>Sign Out</span>
+          </button>
         </div>
       </div>
-    </Modal>
+    </div>
   );
 };
 

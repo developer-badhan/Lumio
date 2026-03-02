@@ -1,57 +1,41 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import api from '../services/axios';
 
-const ChatContext = createContext(null);
+const ChatContext = createContext();
 
 export const ChatProvider = ({ children }) => {
-  const [conversations, setConversations] = useState([]);
+  const [chats, setChats] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [isTyping, setIsTyping] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const fetchChats = useCallback(async () => {
-    // Placeholder for API call to fetch chat list
-    console.log('Fetching conversations...');
-    // const data = await chatService.getConversations();
-    // setConversations(data);
-  }, []);
+  const fetchChats = async () => {
+    try {
+      const { data } = await api.get('/chats');
+      setChats(data);
+    } catch (err) { console.error("Error fetching chats", err); }
+  };
 
-  const sendMessage = useCallback(async (content) => {
-    if (!activeChat) return;
+  const sendMessage = async (content) => {
+    if (!content.trim() || !activeChat) return;
     
-    // Optimistic UI update for premium feel
-    const tempMessage = {
-      id: Date.now(),
-      content,
-      sender: 'me',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'sending'
-    };
-    
-    setMessages(prev => [...prev, tempMessage]);
-    
-    // Placeholder for API call
-    console.log('Sending message:', content, 'to chat:', activeChat.id);
-  }, [activeChat]);
+    // Optimistic UI Update
+    const tempMsg = { id: Date.now(), content, isMe: true, timestamp: new Date() };
+    setMessages(prev => [...prev, tempMsg]);
+
+    try {
+      await api.post(`/chats/${activeChat.id}/messages`, { content });
+    } catch (err) {
+      // Rollback logic here if needed
+      console.error("Failed to send message", err);
+    }
+  };
 
   return (
-    <ChatContext.Provider value={{ 
-      conversations, 
-      activeChat, 
-      setActiveChat,
-      messages, 
-      isTyping,
-      sendMessage, 
-      fetchChats 
-    }}>
+    <ChatContext.Provider value={{ chats, activeChat, setActiveChat, messages, sendMessage, fetchChats, loading }}>
       {children}
     </ChatContext.Provider>
   );
 };
 
-export const useChat = () => {
-  const context = useContext(ChatContext);
-  if (!context) {
-    throw new Error('useChat must be used within a ChatProvider');
-  }
-  return context;
-};
+export const useChat = () => useContext(ChatContext);
