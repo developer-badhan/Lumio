@@ -1,4 +1,5 @@
 import { v2 as cloudinary } from "cloudinary"
+import fs from "fs"
 import dotenv from "dotenv"
 dotenv.config()
 
@@ -22,7 +23,6 @@ export const uploadProfileImg = async (filePath, userId) => {
             { quality: "auto", fetch_format: "auto" }
         ]
     })
-
     return {
         url: result.secure_url,
         publicId: result.public_id
@@ -36,58 +36,54 @@ export const deleteProfileImg = async (publicId) => {
 }
 
 
-// Upload Audio  File to Cloudinary
-export const uploadAudio = async (filePath, userId) => {
-    const result = await cloudinary.uploader.upload(filePath, {
-        resource_type: "video", 
-        folder: "audio_uploads",
-        public_id: `audio_${userId}_${Date.now()}`, 
-        overwrite: false
-    })
+// Upload media to Cloudinary
+export const uploadMedia = async (file, userId) => {
+  const { path: filePath, mimetype, size } = file
 
-    return {
-        url: result.secure_url,
-        publicId: result.public_id,
-        duration: result.duration, 
-        format: result.format
-    }
+  let folder = ""
+  let resourceType = "auto"
+
+  if (mimetype.startsWith("image/")) {
+    folder = "chat_images"
+  } 
+  else if (mimetype.startsWith("audio/")) {
+    folder = "audio_uploads"
+    resourceType = "video" 
+  } 
+  else if (mimetype.startsWith("video/")) {
+    folder = "video_uploads"
+    resourceType = "video"
+  } 
+  else {
+    throw new Error("Unsupported media type")
+  }
+  const result = await cloudinary.uploader.upload(filePath, {
+    folder,
+    resource_type: resourceType,
+    public_id: `${folder}_${userId}_${Date.now()}`,
+    overwrite: false,
+    transformation: [
+      { quality: "auto" },
+      { fetch_format: "auto" }
+    ]
+  })
+
+  // Remove temp file after upload
+  fs.unlinkSync(filePath)
+  return {
+    url: result.secure_url,
+    publicId: result.public_id,
+    format: result.format,
+    size,
+    duration: result.duration || null,
+    width: result.width || null,
+    height: result.height || null
+  }
 }
 
-
-// Delete Audio / Music File from Cloudinary
-export const deleteAudio = async (publicId) => {
-    await cloudinary.uploader.destroy(publicId, {
-        resource_type: "video" 
-    })
-}
-
-
-// Upload Video File to Cloudinary
-export const uploadVideo = async (filePath, userId) => {
-    const result = await cloudinary.uploader.upload(filePath, {
-        resource_type: "video",
-        folder: "video_uploads",
-        public_id: `video_${userId}_${Date.now()}`,
-        overwrite: false,
-        transformation: [
-            { quality: "auto" },
-            { fetch_format: "auto" }
-        ]
-    })
-
-    return {
-        url: result.secure_url,
-        publicId: result.public_id,
-        duration: result.duration,
-        format: result.format,
-        width: result.width,
-        height: result.height
-    }
-}
-
-// Delete Video File from Cloudinary
-export const deleteVideo = async (publicId) => {
-    await cloudinary.uploader.destroy(publicId, {
-        resource_type: "video"
-    })
+// // Delete media from Cloudinary
+export const deleteMedia = async (publicId, resourceType = "auto") => {
+  await cloudinary.uploader.destroy(publicId, {
+    resource_type: resourceType
+  })
 }
