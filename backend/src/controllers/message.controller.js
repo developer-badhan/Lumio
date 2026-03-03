@@ -15,9 +15,30 @@ export const sendMessage = async (req, res, next) => {
       messageType
     })
 
-    await Conversation.findByIdAndUpdate(conversationId, {
-      lastMessage: message._id
+    message.readBy.push(senderId)
+    await message.save()
+
+    const conversation = await Conversation.findById(conversationId)
+
+    if (!conversation) {
+      return res.status(404).json({
+        success: false,
+        message: "Conversation not found"
+      })
+    }
+
+    conversation.participants.forEach(userId => {
+      const id = userId.toString()
+
+      if (id !== senderId.toString()) {
+        const current = conversation.unreadCounts.get(id) || 0
+        conversation.unreadCounts.set(id, current + 1)
+      }
     })
+
+    conversation.lastMessage = message._id
+
+    await conversation.save()
 
     res.status(201).json({
       success: true,
