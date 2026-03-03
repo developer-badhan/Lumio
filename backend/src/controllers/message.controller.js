@@ -1,14 +1,17 @@
+import fs from "fs"
 import Message from "../models/message.model.js"
 import Conversation from "../models/conversation.model.js"
 import Notification from "../models/notification.model.js"
 import { getIO, getOnlineUsers } from "../config/socket.js"
+import { uploadMedia } from "../services/cloudinary.service.js"
 
 
 // Message Sender Controller
 export const sendMessage = async (req, res, next) => {
   try {
-    const { conversationId, content, messageType = "text" } = req.body
+    const { conversationId, content } = req.body
     const senderId = req.user.id
+    const file = req.file
 
     const conversation = await Conversation.findById(conversationId)
 
@@ -19,7 +22,6 @@ export const sendMessage = async (req, res, next) => {
       })
     }
 
-    // Ensure sender is participant
     if (!conversation.participants.some(p => p.toString() === senderId.toString())) {
       return res.status(403).json({
         success: false,
@@ -27,22 +29,61 @@ export const sendMessage = async (req, res, next) => {
       })
     }
 
-    // Restore conversation only for sender if soft-deleted
+    // Restore soft-deleted conversation for sender
     conversation.deletedFor = conversation.deletedFor.filter(
       id => id.toString() !== senderId.toString()
     )
 
-    // Create message
+    let messageType = "text"
+    let mediaData = null
+
+    // Media handling part
+    if (file) {
+      const { mimetype, size } = file
+
+      // Size validation
+      if (mimetype.startsWith("image/") && size > 5 * 1024 * 1024) {
+        fs.unlinkSync(file.path)
+        return res.status(400).json({ success: false, message: "Image max size 5MB" })
+      }
+
+      if (mimetype.startsWith("audio/") && size > 15 * 1024 * 1024) {
+        fs.unlinkSync(file.path)
+        return res.status(400).json({ success: false, message: "Audio max size 15MB" })
+      }
+
+      if (mimetype.startsWith("video/") && size > 50 * 1024 * 1024) {
+        fs.unlinkSync(file.path)
+        return res.status(400).json({ success: false, message: "Video max size 50MB" })
+      }
+
+      mediaData = await uploadMedia(file, senderId)
+
+      if (mimetype.startsWith("image/")) messageType = "image"
+      else if (mimetype.startsWith("audio/")) messageType = "audio"
+      else if (mimetype.startsWith("video/")) messageType = "video"
+
+    } else {
+      if (!content || !content.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Text message content required"
+        })
+      }
+    }
+
+    // Message creation 
     const message = await Message.create({
       conversation: conversationId,
       sender: senderId,
-      content,
+      content: messageType === "text" ? content : undefined,
       messageType,
+      media: mediaData,
       readBy: [senderId],
       deliveredTo: [senderId]
     })
 
-    // Update unread counts for other participants
+    // Unread count
     conversation.participants.forEach(userId => {
       const id = userId.toString()
       if (id !== senderId.toString()) {
@@ -54,7 +95,7 @@ export const sendMessage = async (req, res, next) => {
     conversation.lastMessage = message._id
     await conversation.save()
 
-    // Create notifications for other participants
+    // Notification part
     for (const userId of conversation.participants) {
       const id = userId.toString()
       if (id !== senderId.toString()) {
@@ -68,7 +109,6 @@ export const sendMessage = async (req, res, next) => {
       }
     }
 
-    // Populate sender before emitting
     const populatedMessage = await Message.findById(message._id)
       .populate("sender", "name profilePic")
 
@@ -77,10 +117,8 @@ export const sendMessage = async (req, res, next) => {
       const io = getIO()
       const onlineUsers = getOnlineUsers()
 
-      // Emit new message to conversation room
       io.to(conversationId).emit("new-message", populatedMessage)
 
-      // Delivery tracking
       for (const userId of conversation.participants) {
         const id = userId.toString()
 
@@ -109,8 +147,9 @@ export const sendMessage = async (req, res, next) => {
         }
       }
 
-      // Emit delivery update
+      // Update the message
       const updatedMessage = await Message.findById(message._id)
+
       io.to(conversationId).emit("message-delivered", {
         messageId: message._id,
         deliveredTo: updatedMessage.deliveredTo
