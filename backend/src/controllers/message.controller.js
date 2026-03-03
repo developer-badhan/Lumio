@@ -94,16 +94,29 @@ export const sendMessage = async (req, res, next) => {
 export const getMessages = async (req, res, next) => {
   try {
     const { conversationId } = req.params
+    const { cursor, limit = 20 } = req.query
 
-    const messages = await Message.find({
+    const query = {
       conversation: conversationId
-    })
+    }
+
+    // If cursor provided, fetch older messages
+    if (cursor) {
+      query.createdAt = { $lt: new Date(cursor) }
+    }
+
+    const messages = await Message.find(query)
       .populate("sender", "name profilePic")
-      .sort({ createdAt: 1 })
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+
+    const hasMore = messages.length === parseInt(limit)
 
     res.status(200).json({
       success: true,
-      messages
+      messages: messages.reverse(), // send ascending for UI
+      nextCursor: hasMore ? messages[messages.length - 1].createdAt : null,
+      hasMore
     })
 
   } catch (error) {
