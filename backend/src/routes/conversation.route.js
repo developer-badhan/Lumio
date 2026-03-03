@@ -2,7 +2,8 @@ import express from "express"
 import {
   getOrCreatePrivateConversation,
   createGroupConversation,
-  getUserConversations
+  getUserConversations,
+  markConversationAsRead
 } from "../controllers/conversation.controller.js"
 import authMiddleware from "../middleware/auth.middleware.js"
 
@@ -13,5 +14,6 @@ const router = express.Router()
 router.post("/private", authMiddleware, getOrCreatePrivateConversation)
 router.post("/group", authMiddleware, createGroupConversation)
 router.get("/", authMiddleware, getUserConversations)
+router.patch("/read/:conversationId", authMiddleware, markConversationAsRead)
 
 export default router
