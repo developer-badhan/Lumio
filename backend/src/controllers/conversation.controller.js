@@ -125,7 +125,7 @@ export const markConversationAsRead = async (req, res, next) => {
     try {
       const io = getIO()
 
-      io.to(conversationId).emit("messages-read", {
+      io.to(conversationId).emit("message-read-update", {
         conversationId,
         userId
       })

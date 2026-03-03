@@ -34,6 +34,7 @@ export const sendMessage = async (req, res, next) => {
 
     // Mark sender as read
     message.readBy.push(senderId)
+    message.deliveredTo.push(senderId)
     await message.save()
 
     conversation.participants.forEach(userId => {
@@ -56,15 +57,19 @@ export const sendMessage = async (req, res, next) => {
       const onlineUsers = getOnlineUsers()
 
       // Emit to conversation room
-      io.to(conversationId).emit("new-message", populatedMessage)
+      io.to(conversationId).emit("new-message", message)
 
-      conversation.participants.forEach(userId => {
+      // Delivery tracking
+      for (const userId of conversation.participants) {
         const id = userId.toString()
 
         if (id !== senderId.toString()) {
           const userSockets = onlineUsers.get(id)
 
           if (userSockets) {
+            // Mark delivered
+            message.deliveredTo.push(id)
+
             userSockets.forEach(socketId => {
               io.to(socketId).emit("unread-update", {
                 conversationId,
@@ -73,8 +78,14 @@ export const sendMessage = async (req, res, next) => {
             })
           }
         }
-      })
+      }
+      await message.save()
 
+      // Emit delivery update
+      io.to(conversationId).emit("message-delivered", {
+        messageId: message._id,
+        deliveredTo: message.deliveredTo
+      })
     } catch (socketError) {
       console.error("Socket emission failed:", socketError.message)
     }
