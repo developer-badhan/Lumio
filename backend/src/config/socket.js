@@ -1,4 +1,5 @@
 import { Server } from "socket.io"
+import jwt from "jsonwebtoken"
 import User from "../models/user.model.js"
 
 // Store online users in memory
@@ -15,22 +16,50 @@ export const initializeSocket = (server) => {
     }
   })
 
-  io.on("connection", (socket) => {
+  // SOCKET AUTH MIDDLEWARE
+  io.use(async (socket, next) => {
+    try {
+      const token = socket.handshake.auth?.token
 
-    // USER ONLINE
-    socket.on("user-online", async (userId) => {
-      if (!onlineUsers.has(userId)) {
-        onlineUsers.set(userId, new Set())
+      if (!token) {
+        return next(new Error("Authentication token missing"))
       }
 
-      onlineUsers.get(userId).add(socket.id)
+      const decoded = jwt.verify(token, process.env.ACCESS_TOKEN)
 
-      await User.findByIdAndUpdate(userId, { isOnline: true })
+      const user = await User.findById(decoded.userId)
 
-      io.emit("user-status-change", {
-        userId,
-        isOnline: true
-      })
+      if (!user) {
+        return next(new Error("User not found"))
+      }
+
+      socket.user = {
+        _id: user._id.toString(),
+        name: user.name
+      }
+
+      next()
+    } catch (error) {
+      return next(new Error("Authentication failed"))
+    }
+  })
+
+  io.on("connection", async (socket) => {
+
+    const userId = socket.user._id
+
+    // REGISTER USER ONLINE SECURELY
+    if (!onlineUsers.has(userId)) {
+      onlineUsers.set(userId, new Set())
+    }
+
+    onlineUsers.get(userId).add(socket.id)
+
+    await User.findByIdAndUpdate(userId, { isOnline: true })
+
+    io.emit("user-status-change", {
+      userId,
+      isOnline: true
     })
 
     // JOIN CONVERSATION ROOM
@@ -38,20 +67,19 @@ export const initializeSocket = (server) => {
       socket.join(conversationId)
     })
 
-    // LEAVE CONVERSATION ROOM
     socket.on("leave-conversation", (conversationId) => {
       socket.leave(conversationId)
     })
 
-    // TYPING INDICATOR 
-    socket.on("typing", ({ conversationId, userId }) => {
+    // TYPING INDICATOR (SECURE)
+    socket.on("typing", ({ conversationId }) => {
       socket.to(conversationId).emit("user-typing", {
         conversationId,
         userId
       })
     })
 
-    socket.on("stop-typing", ({ conversationId, userId }) => {
+    socket.on("stop-typing", ({ conversationId }) => {
       socket.to(conversationId).emit("user-stop-typing", {
         conversationId,
         userId
@@ -60,23 +88,23 @@ export const initializeSocket = (server) => {
 
     // DISCONNECT
     socket.on("disconnect", async () => {
-      for (const [userId, sockets] of onlineUsers.entries()) {
-        if (sockets.has(socket.id)) {
-          sockets.delete(socket.id)
+      const sockets = onlineUsers.get(userId)
 
-          if (sockets.size === 0) {
-            onlineUsers.delete(userId)
+      if (sockets) {
+        sockets.delete(socket.id)
 
-            await User.findByIdAndUpdate(userId, {
-              isOnline: false,
-              lastSeen: new Date()
-            })
+        if (sockets.size === 0) {
+          onlineUsers.delete(userId)
 
-            io.emit("user-status-change", {
-              userId,
-              isOnline: false
-            })
-          }
+          await User.findByIdAndUpdate(userId, {
+            isOnline: false,
+            lastSeen: new Date()
+          })
+
+          io.emit("user-status-change", {
+            userId,
+            isOnline: false
+          })
         }
       }
     })
