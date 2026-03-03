@@ -59,9 +59,20 @@ export const sendMessage = async (req, res, next) => {
 
       mediaData = await uploadMedia(file, senderId)
 
-      if (mimetype.startsWith("image/")) messageType = "image"
-      else if (mimetype.startsWith("audio/")) messageType = "audio"
-      else if (mimetype.startsWith("video/")) messageType = "video"
+      if (mimetype.startsWith("image/")) {
+        messageType = "image"
+      }
+      else if (mimetype.startsWith("audio/")) {
+        // Intelligent Voice Detection
+        if (mediaData.duration && mediaData.duration <= 60) {
+            messageType = "voice"
+          } else {
+            messageType = "audio"
+          }
+      }
+      else if (mimetype.startsWith("video/")) {
+        messageType = "video"
+      }
 
     } else {
       if (!content || !content.trim()) {
