@@ -3,7 +3,6 @@ import Conversation from "../models/conversation.model.js"
 import { getIO, getOnlineUsers } from "../config/socket.js"
 
 
-
 // Message Sender Controller
 export const sendMessage = async (req, res, next) => {
   try {
@@ -117,6 +116,104 @@ export const getMessages = async (req, res, next) => {
       messages: messages.reverse(), // send ascending for UI
       nextCursor: hasMore ? messages[messages.length - 1].createdAt : null,
       hasMore
+    })
+
+  } catch (error) {
+    next(error)
+  }
+}
+
+// Message Editor Controller
+export const editMessage = async (req, res, next) => {
+  try {
+    const { messageId } = req.params
+    const { newContent } = req.body
+    const userId = req.user.id
+
+    const message = await Message.findById(messageId)
+
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: "Message not found"
+      })
+    }
+
+    if (message.sender.toString() !== userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only edit your own message"
+      })
+    }
+
+    if (message.isDeleted) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot edit deleted message"
+      })
+    }
+
+    message.content = newContent
+    message.isEdited = true
+    message.editedAt = new Date()
+
+    await message.save()
+
+    const io = getIO()
+    io.to(message.conversation.toString()).emit("message-edited", message)
+
+    res.status(200).json({
+      success: true,
+      message
+    })
+
+  } catch (error) {
+    next(error)
+  }
+}
+
+
+// Message Deletor Controller (Soft Delete)
+export const deleteMessage = async (req, res, next) => {
+  try {
+    const { messageId } = req.params
+    const userId = req.user.id
+
+    const message = await Message.findById(messageId)
+
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: "Message not found"
+      })
+    }
+
+    if (message.sender.toString() !== userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only delete your own message"
+      })
+    }
+
+    if (message.isDeleted) {
+      return res.status(400).json({
+        success: false,
+        message: "Message already deleted"
+      })
+    }
+
+    message.content = "This message was deleted"
+    message.isDeleted = true
+    message.deletedAt = new Date()
+
+    await message.save()
+
+    const io = getIO()
+    io.to(message.conversation.toString()).emit("message-deleted", message)
+
+    res.status(200).json({
+      success: true,
+      message: "Message deleted"
     })
 
   } catch (error) {
