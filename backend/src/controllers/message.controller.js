@@ -10,6 +10,7 @@ export const sendMessage = async (req, res, next) => {
     const senderId = req.user.id
 
     const conversation = await Conversation.findById(conversationId)
+    conversation.deletedFor = []
 
     if (!conversation) {
       return res.status(404).json({

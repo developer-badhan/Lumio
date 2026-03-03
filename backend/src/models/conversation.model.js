@@ -30,9 +30,9 @@ const conversationSchema = new mongoose.Schema({
     default: {}
   },
   deletedFor: [{
-  type: mongoose.Schema.Types.ObjectId,
-  ref: "User"
-}]
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User"
+  }]
 
 }, { timestamps: true })
 

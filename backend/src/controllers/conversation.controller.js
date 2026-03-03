@@ -63,7 +63,8 @@ export const getUserConversations = async (req, res, next) => {
     const userId = req.user.id
 
     const conversations = await Conversation.find({
-      participants: userId
+      participants: userId,
+      deletedFor: { $ne: userId }
     })
       .populate("participants", "name email profilePic isOnline")
       .populate("lastMessage")
@@ -142,3 +143,42 @@ export const markConversationAsRead = async (req, res, next) => {
     next(error)
   }
 }
+
+
+// Conversation Soft Delete Controller
+export const softDeleteConversation = async (req, res, next) => {
+  try {
+    const { conversationId } = req.params
+    const userId = req.user.id
+
+    const conversation = await Conversation.findById(conversationId)
+
+    if (!conversation) {
+      return res.status(404).json({
+        success: false,
+        message: "Conversation not found"
+      })
+    }
+
+    if (!conversation.participants.includes(userId)) {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized"
+      })
+    }
+
+    if (!conversation.deletedFor.includes(userId)) {
+      conversation.deletedFor.push(userId)
+      await conversation.save()
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Conversation deleted for you"
+    })
+
+  } catch (error) {
+    next(error)
+  }
+}
+
