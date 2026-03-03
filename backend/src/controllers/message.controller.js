@@ -3,7 +3,7 @@ import Message from "../models/message.model.js"
 import Conversation from "../models/conversation.model.js"
 import Notification from "../models/notification.model.js"
 import { getIO, getOnlineUsers } from "../config/socket.js"
-import { uploadMedia } from "../services/cloudinary.service.js"
+import { uploadMedia, deleteMedia } from "../services/cloudinary.service.js"
 
 
 // Message Sender Controller
@@ -285,6 +285,7 @@ export const editMessage = async (req, res, next) => {
   }
 }
 
+
 // Message Deletor Controller (Soft Delete)
 export const deleteMessage = async (req, res, next) => {
   try {
@@ -314,6 +315,21 @@ export const deleteMessage = async (req, res, next) => {
       })
     }
 
+    // Media cleanup 
+    if (message.media && message.media.publicId) {
+      let resourceType = "auto"
+
+      if (message.messageType === "audio" || message.messageType === "voice" || message.messageType === "video") {
+        resourceType = "video"
+      }
+
+      await deleteMedia(message.media.publicId, resourceType)
+
+      // Clear media metadata after deletion
+      message.media = null
+    }
+
+    // Soft delete
     message.content = "This message was deleted"
     message.isDeleted = true
     message.deletedAt = new Date()
@@ -325,7 +341,7 @@ export const deleteMessage = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: "Message deleted"
+      message: "Message deleted successfully"
     })
 
   } catch (error) {
