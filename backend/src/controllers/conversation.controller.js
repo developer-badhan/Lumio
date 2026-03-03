@@ -1,5 +1,6 @@
 import Conversation from "../models/conversation.model.js"
 import Message from "../models/message.model.js"
+import { getIO } from "../config/socket.js"
 
 
 // Create or Get Private Conversation Controller
@@ -78,16 +79,37 @@ export const getUserConversations = async (req, res, next) => {
   }
 }
 
+
 // Mark Conversation Read Controller
 export const markConversationAsRead = async (req, res, next) => {
   try {
     const { conversationId } = req.params
     const userId = req.user.id
 
+    // Validate conversation
     const conversation = await Conversation.findById(conversationId)
 
-    conversation.unreadCounts.set(userId, 0)
-    await conversation.save()
+    if (!conversation) {
+      return res.status(404).json({
+        success: false,
+        message: "Conversation not found"
+      })
+    }
+
+    // Ensure user is participant
+    if (!conversation.participants.includes(userId)) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not part of this conversation"
+      })
+    }
+
+    const currentUnread = conversation.unreadCounts.get(userId) || 0
+
+    if (currentUnread > 0) {
+      conversation.unreadCounts.set(userId, 0)
+      await conversation.save()
+    }
 
     await Message.updateMany(
       {
@@ -99,6 +121,18 @@ export const markConversationAsRead = async (req, res, next) => {
       }
     )
 
+    // Emit read receipt to conversation room
+    try {
+      const io = getIO()
+
+      io.to(conversationId).emit("messages-read", {
+        conversationId,
+        userId
+      })
+
+    } catch (socketError) {
+      console.error("Socket emission failed:", socketError.message)
+    }
     res.status(200).json({
       success: true,
       message: "Conversation marked as read"

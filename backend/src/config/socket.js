@@ -1,7 +1,6 @@
 import { Server } from "socket.io"
 import User from "../models/user.model.js"
 
-
 // Store online users in memory
 const onlineUsers = new Map()
 
@@ -18,6 +17,7 @@ export const initializeSocket = (server) => {
 
   io.on("connection", (socket) => {
 
+    // USER ONLINE
     socket.on("user-online", async (userId) => {
       if (!onlineUsers.has(userId)) {
         onlineUsers.set(userId, new Set())
@@ -33,6 +33,32 @@ export const initializeSocket = (server) => {
       })
     })
 
+    // JOIN CONVERSATION ROOM
+    socket.on("join-conversation", (conversationId) => {
+      socket.join(conversationId)
+    })
+
+    // LEAVE CONVERSATION ROOM
+    socket.on("leave-conversation", (conversationId) => {
+      socket.leave(conversationId)
+    })
+
+    // TYPING INDICATOR 
+    socket.on("typing", ({ conversationId, userId }) => {
+      socket.to(conversationId).emit("user-typing", {
+        conversationId,
+        userId
+      })
+    })
+
+    socket.on("stop-typing", ({ conversationId, userId }) => {
+      socket.to(conversationId).emit("user-stop-typing", {
+        conversationId,
+        userId
+      })
+    })
+
+    // DISCONNECT
     socket.on("disconnect", async () => {
       for (const [userId, sockets] of onlineUsers.entries()) {
         if (sockets.has(socket.id)) {

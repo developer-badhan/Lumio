@@ -1,5 +1,7 @@
 import Message from "../models/message.model.js"
 import Conversation from "../models/conversation.model.js"
+import { getIO, getOnlineUsers } from "../config/socket.js"
+
 
 
 // Message Sender Controller
@@ -7,16 +9,6 @@ export const sendMessage = async (req, res, next) => {
   try {
     const { conversationId, content, messageType } = req.body
     const senderId = req.user.id
-
-    const message = await Message.create({
-      conversation: conversationId,
-      sender: senderId,
-      content,
-      messageType
-    })
-
-    message.readBy.push(senderId)
-    await message.save()
 
     const conversation = await Conversation.findById(conversationId)
 
@@ -26,6 +18,24 @@ export const sendMessage = async (req, res, next) => {
         message: "Conversation not found"
       })
     }
+
+    if (!conversation.participants.includes(senderId)) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not part of this conversation"
+      })
+    }
+
+    const message = await Message.create({
+      conversation: conversationId,
+      sender: senderId,
+      content,
+      messageType
+    })
+
+    // Mark sender as read
+    message.readBy.push(senderId)
+    await message.save()
 
     conversation.participants.forEach(userId => {
       const id = userId.toString()
@@ -37,12 +47,41 @@ export const sendMessage = async (req, res, next) => {
     })
 
     conversation.lastMessage = message._id
-
     await conversation.save()
 
+    const populatedMessage = await Message.findById(message._id)
+      .populate("sender", "username profilePic")
+
+    try {
+      const io = getIO()
+      const onlineUsers = getOnlineUsers()
+
+      // Emit to conversation room
+      io.to(conversationId).emit("new-message", populatedMessage)
+
+      conversation.participants.forEach(userId => {
+        const id = userId.toString()
+
+        if (id !== senderId.toString()) {
+          const userSockets = onlineUsers.get(id)
+
+          if (userSockets) {
+            userSockets.forEach(socketId => {
+              io.to(socketId).emit("unread-update", {
+                conversationId,
+                unreadCount: conversation.unreadCounts.get(id)
+              })
+            })
+          }
+        }
+      })
+
+    } catch (socketError) {
+      console.error("Socket emission failed:", socketError.message)
+    }
     res.status(201).json({
       success: true,
-      message
+      message: populatedMessage
     })
 
   } catch (error) {
