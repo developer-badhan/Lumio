@@ -3,8 +3,27 @@ import Message from "../models/message.model.js"
 import Conversation from "../models/conversation.model.js"
 import Notification from "../models/notification.model.js"
 import { getIO, getOnlineUsers } from "../config/socket.js"
-import { uploadMedia, deleteMedia } from "../services/cloudinary.service.js"
+import { uploadMedia } from "../services/cloudinary.service.js"
 
+// Per-type size limits
+const SIZE_LIMITS = {
+  image: 5  * 1024 * 1024,  // 5MB
+  audio: 15 * 1024 * 1024,  // 15MB
+  video: 50 * 1024 * 1024,  // 50MB
+}
+
+const SIZE_LABELS = {
+  image: "5MB",
+  audio: "15MB",
+  video: "50MB",
+}
+
+// Safe temp file cleanup
+const cleanupFile = (filePath) => {
+  if (filePath && fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath)
+  }
+}
 
 // Message Sender Controller
 export const sendMessage = async (req, res, next) => {
@@ -13,169 +32,197 @@ export const sendMessage = async (req, res, next) => {
     const senderId = req.user.id
     const file = req.file
 
+    // Fail fast — validate input before any DB call 
+    if (!conversationId) {
+      return res.status(400).json({
+        success: false,
+        message: "conversationId is required"
+      })
+    }
+
+    if (!file && (!content || !content.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: "Message must have text content or a media file"
+      })
+    }
+
+    // Fetch and validate conversation
     const conversation = await Conversation.findById(conversationId)
 
     if (!conversation) {
+      cleanupFile(file?.path)
       return res.status(404).json({
         success: false,
         message: "Conversation not found"
       })
     }
 
-    if (!conversation.participants.some(p => p.toString() === senderId.toString())) {
+    // Authorization — sender must be a participant
+    const isParticipant = conversation.participants
+      .some(p => p.toString() === senderId.toString())
+
+    if (!isParticipant) {
+      cleanupFile(file?.path)
       return res.status(403).json({
         success: false,
         message: "You are not part of this conversation"
       })
     }
 
-    // Restore soft-deleted conversation for sender
+    // Restore soft-deleted conversation for sender 
     conversation.deletedFor = conversation.deletedFor.filter(
       id => id.toString() !== senderId.toString()
     )
 
+    // Media handling 
     let messageType = "text"
     let mediaData = null
 
-    // Media handling part
     if (file) {
       const { mimetype, size } = file
 
-      // Size validation
-      if (mimetype.startsWith("image/") && size > 5 * 1024 * 1024) {
-        fs.unlinkSync(file.path)
-        return res.status(400).json({ success: false, message: "Image max size 5MB" })
-      }
+      // Derive category once — reuse everywhere
+      const mediaCategory = mimetype.startsWith("image/") ? "image"
+                          : mimetype.startsWith("audio/") ? "audio"
+                          : mimetype.startsWith("video/") ? "video"
+                          : null
 
-      if (mimetype.startsWith("audio/") && size > 15 * 1024 * 1024) {
-        fs.unlinkSync(file.path)
-        return res.status(400).json({ success: false, message: "Audio max size 15MB" })
-      }
-
-      if (mimetype.startsWith("video/") && size > 50 * 1024 * 1024) {
-        fs.unlinkSync(file.path)
-        return res.status(400).json({ success: false, message: "Video max size 50MB" })
-      }
-
-      mediaData = await uploadMedia(file, senderId)
-
-      if (mimetype.startsWith("image/")) {
-        messageType = "image"
-      }
-      else if (mimetype.startsWith("audio/")) {
-        // Intelligent Voice Detection
-        if (mediaData.duration && mediaData.duration <= 60) {
-            messageType = "voice"
-          } else {
-            messageType = "audio"
-          }
-      }
-      else if (mimetype.startsWith("video/")) {
-        messageType = "video"
-      }
-
-    } else {
-      if (!content || !content.trim()) {
+      // Second line of defense after middleware
+      if (!mediaCategory) {
+        cleanupFile(file.path)
         return res.status(400).json({
           success: false,
-          message: "Text message content required"
+          message: "Unsupported file type"
         })
+      }
+
+      // Per-type size check — before Cloudinary upload
+      if (size > SIZE_LIMITS[mediaCategory]) {
+        cleanupFile(file.path)
+        return res.status(400).json({
+          success: false,
+          message: `${mediaCategory.charAt(0).toUpperCase() + mediaCategory.slice(1)} max size is ${SIZE_LABELS[mediaCategory]}`
+        })
+      }
+
+      // Upload — cloudinary.service internally calls unlinkSync after upload
+      mediaData = await uploadMedia(file, senderId)
+
+      // Determine message type
+      if (mediaCategory === "image") {
+        messageType = "image"
+      } else if (mediaCategory === "audio") {
+        // Voice = short audio ≤ 60s
+        messageType = (mediaData.duration && mediaData.duration <= 60)
+          ? "voice"
+          : "audio"
+      } else if (mediaCategory === "video") {
+        messageType = "video"
       }
     }
 
-    // Message creation 
+    //  Create message 
     const message = await Message.create({
       conversation: conversationId,
       sender: senderId,
-      content: messageType === "text" ? content : undefined,
+      content: messageType === "text" ? content.trim() : undefined,
       messageType,
       media: mediaData,
       readBy: [senderId],
       deliveredTo: [senderId]
     })
 
-    // Unread count
-    conversation.participants.forEach(userId => {
+    // Update unread counts and lastMessage
+    const otherParticipants = conversation.participants
+      .filter(userId => userId.toString() !== senderId.toString())
+
+    otherParticipants.forEach(userId => {
       const id = userId.toString()
-      if (id !== senderId.toString()) {
-        const current = conversation.unreadCounts.get(id) || 0
-        conversation.unreadCounts.set(id, current + 1)
-      }
+      const current = conversation.unreadCounts.get(id) || 0
+      conversation.unreadCounts.set(id, current + 1)
     })
 
     conversation.lastMessage = message._id
     await conversation.save()
 
-    // Notification part
-    for (const userId of conversation.participants) {
-      const id = userId.toString()
-      if (id !== senderId.toString()) {
-        await Notification.create({
-          recipient: id,
+    // Notifications — one bulk write, not N sequential writes 
+    if (otherParticipants.length > 0) {
+      await Notification.insertMany(
+        otherParticipants.map(userId => ({
+          recipient: userId.toString(),
           sender: senderId,
           type: "message",
           conversation: conversationId,
           message: message._id
-        })
-      }
+        }))
+      )
     }
 
+    // Populate message for response and socket 
     const populatedMessage = await Message.findById(message._id)
       .populate("sender", "name profilePic")
 
-    // Socket emission
+    // Socket emission 
     try {
       const io = getIO()
       const onlineUsers = getOnlineUsers()
 
+      // Broadcast new message to everyone in conversation room
       io.to(conversationId).emit("new-message", populatedMessage)
 
-      for (const userId of conversation.participants) {
+      // Per-user events + track who received delivery
+      const deliveredToIds = []
+
+      for (const userId of otherParticipants) {
         const id = userId.toString()
+        const userSockets = onlineUsers.get(id)
 
-        if (id !== senderId.toString()) {
-          const userSockets = onlineUsers.get(id)
+        if (userSockets && userSockets.size > 0) {
+          deliveredToIds.push(id)
 
-          if (userSockets && userSockets.size > 0) {
-            await Message.findByIdAndUpdate(
-              message._id,
-              { $addToSet: { deliveredTo: id } }
-            )
-
-            userSockets.forEach(socketId => {
-              io.to(socketId).emit("unread-update", {
-                conversationId,
-                unreadCount: conversation.unreadCounts.get(id)
-              })
-
-              io.to(socketId).emit("new-notification", {
-                type: "message",
-                conversationId,
-                messageId: message._id
-              })
+          userSockets.forEach(socketId => {
+            io.to(socketId).emit("unread-update", {
+              conversationId,
+              unreadCount: conversation.unreadCounts.get(id)
             })
-          }
+
+            io.to(socketId).emit("new-notification", {
+              type: "message",
+              conversationId,
+              messageId: message._id
+            })
+          })
         }
       }
 
-      // Update the message
-      const updatedMessage = await Message.findById(message._id)
+      // One bulk $addToSet — not one write per user
+      if (deliveredToIds.length > 0) {
+        await Message.findByIdAndUpdate(
+          message._id,
+          { $addToSet: { deliveredTo: { $each: deliveredToIds } } }
+        )
+      }
 
+      // Delivery confirmation — composed locally, no extra DB read
       io.to(conversationId).emit("message-delivered", {
         messageId: message._id,
-        deliveredTo: updatedMessage.deliveredTo
+        deliveredTo: [...message.deliveredTo, ...deliveredToIds]
       })
 
     } catch (socketError) {
+      // Socket failure must never kill the HTTP response
       console.error("Socket emission failed:", socketError.message)
     }
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: populatedMessage
     })
 
   } catch (error) {
+    // Catch-all: cleanup if uploadMedia threw before its own unlinkSync
+    cleanupFile(req.file?.path)
     next(error)
   }
 }
