@@ -23,3 +23,24 @@ export const getNotifications = async (req, res, next) => {
     next(error)
   }
 }
+
+// Mark Notification Read Controller
+export const markNotificationAsRead = async (req, res, next) => {
+  try {
+    const { notificationId } = req.params
+    const userId = req.user.id
+
+    await Notification.findOneAndUpdate(
+      { _id: notificationId, recipient: userId },
+      { isRead: true }
+    )
+
+    res.status(200).json({
+      success: true,
+      message: "Notification marked as read"
+    })
+
+  } catch (error) {
+    next(error)
+  }
+}
