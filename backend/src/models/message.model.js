@@ -32,9 +32,25 @@ const messageSchema = new mongoose.Schema({
   isEdited: {
     type: Boolean,
     default: false
+  },
+
+  editedAt: {
+    type: Date,
+    default: null
+  },
+
+  isDeleted: {
+    type: Boolean,
+    default: false
+  },
+
+  deletedAt: {
+    type: Date,
+    default: null
   }
 
 }, { timestamps: true })
+
 
 // Improve Schema for Performance
 messageSchema.index({ conversation: 1, createdAt: -1 })
