@@ -56,7 +56,7 @@ export const createGroupConversation = async (req, res, next) => {
 }
 
 
-// Get User Conversations
+// Get User Conversations Controller
 export const getUserConversations = async (req, res, next) => {
   try {
     const userId = req.user.id
@@ -71,6 +71,37 @@ export const getUserConversations = async (req, res, next) => {
     res.status(200).json({
       success: true,
       conversations
+    })
+
+  } catch (error) {
+    next(error)
+  }
+}
+
+// Mark Conversation Read Controller
+export const markConversationAsRead = async (req, res, next) => {
+  try {
+    const { conversationId } = req.params
+    const userId = req.user.id
+
+    const conversation = await Conversation.findById(conversationId)
+
+    conversation.unreadCounts.set(userId, 0)
+    await conversation.save()
+
+    await Message.updateMany(
+      {
+        conversation: conversationId,
+        readBy: { $ne: userId }
+      },
+      {
+        $push: { readBy: userId }
+      }
+    )
+
+    res.status(200).json({
+      success: true,
+      message: "Conversation marked as read"
     })
 
   } catch (error) {
