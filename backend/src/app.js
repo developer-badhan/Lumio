@@ -5,6 +5,9 @@ import errorHandler from "./middleware/error.middleware.js"
 
 // Import the  Routes
 import authRouter from "./routes/auth.route.js"
+import conversationRouter from "./routes/conversation.route.js"
+import messageRouter from "./routes/message.route.js"
+import notificationRouter from "./routes/notification.route.js"
 
 // Initialize Express App
 const app = express()
@@ -24,7 +27,9 @@ app.use(cookieParser())
 
 // Use the  Routes
 app.use("/api/auth", authRouter)
-
+app.use("/api/conversations", conversationRouter)
+app.use("/api/messages", messageRouter)
+app.use("/api/notifications", notificationRouter)
 
 // Error Handling Middleware
 app.use(errorHandler)
