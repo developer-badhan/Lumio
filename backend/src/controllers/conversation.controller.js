@@ -9,6 +9,20 @@ export const getOrCreatePrivateConversation = async (req, res, next) => {
     const { receiverId } = req.body
     const senderId = req.user.id
 
+    if (!receiverId) {
+      return res.status(400).json({
+        success: false,
+        message: "Receiver ID is required"
+      })
+    }
+
+    if (receiverId === senderId) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot create conversation with yourself"
+      })
+    }
+
     let conversation = await Conversation.findOne({
       type: "private",
       participants: { $all: [senderId, receiverId] },
@@ -18,8 +32,20 @@ export const getOrCreatePrivateConversation = async (req, res, next) => {
     if (!conversation) {
       conversation = await Conversation.create({
         type: "private",
-        participants: [senderId, receiverId]
+        participants: [senderId, receiverId],
+        unreadCounts: {
+          [senderId]: 0,
+          [receiverId]: 0
+        }
       })
+    } else {
+      // Restore if soft deleted for sender
+      if (conversation.deletedFor.includes(senderId)) {
+        conversation.deletedFor = conversation.deletedFor.filter(
+          id => id.toString() !== senderId.toString()
+        )
+        await conversation.save()
+      }
     }
 
     res.status(200).json({
@@ -36,14 +62,30 @@ export const getOrCreatePrivateConversation = async (req, res, next) => {
 // Create Group Conversation Controller
 export const createGroupConversation = async (req, res, next) => {
   try {
-    const { groupName, members } = req.body
+    const { groupName, members = [] } = req.body
     const adminId = req.user.id
+
+    if (!groupName || members.length < 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Group name and at least one member required"
+      })
+    }
+
+    // Remove duplicates and ensure admin included
+    const uniqueMembers = [...new Set([adminId, ...members])]
+
+    const unreadCounts = {}
+    uniqueMembers.forEach(id => {
+      unreadCounts[id] = 0
+    })
 
     const conversation = await Conversation.create({
       type: "group",
-      participants: [adminId, ...members],
+      participants: uniqueMembers,
       groupName,
-      groupAdmin: adminId
+      groupAdmin: adminId,
+      unreadCounts
     })
 
     res.status(201).json({
@@ -87,7 +129,6 @@ export const markConversationAsRead = async (req, res, next) => {
     const { conversationId } = req.params
     const userId = req.user.id
 
-    // Validate conversation
     const conversation = await Conversation.findById(conversationId)
 
     if (!conversation) {
@@ -97,8 +138,7 @@ export const markConversationAsRead = async (req, res, next) => {
       })
     }
 
-    // Ensure user is participant
-    if (!conversation.participants.includes(userId)) {
+    if (!conversation.participants.some(p => p.toString() === userId.toString())) {
       return res.status(403).json({
         success: false,
         message: "You are not part of this conversation"
@@ -115,14 +155,14 @@ export const markConversationAsRead = async (req, res, next) => {
     await Message.updateMany(
       {
         conversation: conversationId,
+        isDeleted: false,
         readBy: { $ne: userId }
       },
       {
-        $push: { readBy: userId }
+        $addToSet: { readBy: userId }
       }
     )
 
-    // Emit read receipt to conversation room
     try {
       const io = getIO()
 
@@ -134,6 +174,7 @@ export const markConversationAsRead = async (req, res, next) => {
     } catch (socketError) {
       console.error("Socket emission failed:", socketError.message)
     }
+
     res.status(200).json({
       success: true,
       message: "Conversation marked as read"
@@ -143,7 +184,6 @@ export const markConversationAsRead = async (req, res, next) => {
     next(error)
   }
 }
-
 
 // Conversation Soft Delete Controller
 export const softDeleteConversation = async (req, res, next) => {
