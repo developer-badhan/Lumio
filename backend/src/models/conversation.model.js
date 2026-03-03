@@ -8,7 +8,8 @@ const conversationSchema = new mongoose.Schema({
   },
   participants: [{
     type: mongoose.Schema.Types.ObjectId,
-    ref: "User"
+    ref: "User",
+    required: true
   }],
   groupName: {
     type: String,
@@ -35,5 +36,8 @@ const conversationSchema = new mongoose.Schema({
   }]
 
 }, { timestamps: true })
+
+// Improve Schema for Performance
+conversationSchema.index({ participants: 1 })
 
 export default mongoose.model("Conversation", conversationSchema)

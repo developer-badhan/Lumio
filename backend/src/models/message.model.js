@@ -13,7 +13,9 @@ const messageSchema = new mongoose.Schema({
   },
   content: {
     type: String,
-    required: true
+    required: function () {
+        return this.messageType === "text"
+      }
   },
   messageType: {
     type: String,
