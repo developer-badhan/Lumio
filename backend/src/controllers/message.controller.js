@@ -221,13 +221,13 @@ export const getMessages = async (req, res, next) => {
   }
 }
 
+
 // Message Editor Controller
 export const editMessage = async (req, res, next) => {
   try {
     const { messageId } = req.params
     const { newContent } = req.body
     const userId = req.user.id
-
     const message = await Message.findById(messageId)
 
     if (!message) {
@@ -251,7 +251,22 @@ export const editMessage = async (req, res, next) => {
       })
     }
 
-    message.content = newContent
+    // Restrict editing to text messages only
+    if (message.messageType !== "text") {
+      return res.status(400).json({
+        success: false,
+        message: "Only text messages can be edited"
+      })
+    }
+
+    if (!newContent || !newContent.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Edited content cannot be empty"
+      })
+    }
+
+    message.content = newContent.trim()
     message.isEdited = true
     message.editedAt = new Date()
 
@@ -269,7 +284,6 @@ export const editMessage = async (req, res, next) => {
     next(error)
   }
 }
-
 
 // Message Deletor Controller (Soft Delete)
 export const deleteMessage = async (req, res, next) => {
