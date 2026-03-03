@@ -7,11 +7,10 @@ import { getIO, getOnlineUsers } from "../config/socket.js"
 // Message Sender Controller
 export const sendMessage = async (req, res, next) => {
   try {
-    const { conversationId, content, messageType } = req.body
+    const { conversationId, content, messageType = "text" } = req.body
     const senderId = req.user.id
 
     const conversation = await Conversation.findById(conversationId)
-    conversation.deletedFor = []
 
     if (!conversation) {
       return res.status(404).json({
@@ -20,28 +19,32 @@ export const sendMessage = async (req, res, next) => {
       })
     }
 
-    if (!conversation.participants.includes(senderId)) {
+    // Ensure sender is participant
+    if (!conversation.participants.some(p => p.toString() === senderId.toString())) {
       return res.status(403).json({
         success: false,
         message: "You are not part of this conversation"
       })
     }
 
+    // Restore conversation only for sender if soft-deleted
+    conversation.deletedFor = conversation.deletedFor.filter(
+      id => id.toString() !== senderId.toString()
+    )
+
+    // Create message
     const message = await Message.create({
       conversation: conversationId,
       sender: senderId,
       content,
-      messageType
+      messageType,
+      readBy: [senderId],
+      deliveredTo: [senderId]
     })
 
-    // Mark sender as read
-    message.readBy.push(senderId)
-    message.deliveredTo.push(senderId)
-    await message.save()
-
+    // Update unread counts for other participants
     conversation.participants.forEach(userId => {
       const id = userId.toString()
-
       if (id !== senderId.toString()) {
         const current = conversation.unreadCounts.get(id) || 0
         conversation.unreadCounts.set(id, current + 1)
@@ -51,9 +54,9 @@ export const sendMessage = async (req, res, next) => {
     conversation.lastMessage = message._id
     await conversation.save()
 
+    // Create notifications for other participants
     for (const userId of conversation.participants) {
       const id = userId.toString()
-
       if (id !== senderId.toString()) {
         await Notification.create({
           recipient: id,
@@ -65,15 +68,17 @@ export const sendMessage = async (req, res, next) => {
       }
     }
 
+    // Populate sender before emitting
     const populatedMessage = await Message.findById(message._id)
-      .populate("sender", "username profilePic")
+      .populate("sender", "name profilePic")
 
+    // Socket emission
     try {
       const io = getIO()
       const onlineUsers = getOnlineUsers()
 
-      // Emit to conversation room
-      io.to(conversationId).emit("new-message", message)
+      // Emit new message to conversation room
+      io.to(conversationId).emit("new-message", populatedMessage)
 
       // Delivery tracking
       for (const userId of conversation.participants) {
@@ -82,34 +87,39 @@ export const sendMessage = async (req, res, next) => {
         if (id !== senderId.toString()) {
           const userSockets = onlineUsers.get(id)
 
-          if (userSockets) {
-            // Mark delivered
-            message.deliveredTo.push(id)
+          if (userSockets && userSockets.size > 0) {
+            await Message.findByIdAndUpdate(
+              message._id,
+              { $addToSet: { deliveredTo: id } }
+            )
 
             userSockets.forEach(socketId => {
               io.to(socketId).emit("unread-update", {
                 conversationId,
                 unreadCount: conversation.unreadCounts.get(id)
               })
+
+              io.to(socketId).emit("new-notification", {
+                type: "message",
+                conversationId,
+                messageId: message._id
+              })
             })
           }
         }
       }
-      await message.save()
 
       // Emit delivery update
+      const updatedMessage = await Message.findById(message._id)
       io.to(conversationId).emit("message-delivered", {
         messageId: message._id,
-        deliveredTo: message.deliveredTo
+        deliveredTo: updatedMessage.deliveredTo
       })
-      io.to(socketId).emit("new-notification", {
-        type: "message",
-        conversationId,
-        messageId: message._id
-      })
+
     } catch (socketError) {
       console.error("Socket emission failed:", socketError.message)
     }
+
     res.status(201).json({
       success: true,
       message: populatedMessage
@@ -126,12 +136,29 @@ export const getMessages = async (req, res, next) => {
   try {
     const { conversationId } = req.params
     const { cursor, limit = 20 } = req.query
+    const userId = req.user.id
+
+    const conversation = await Conversation.findById(conversationId)
+
+    if (!conversation) {
+      return res.status(404).json({
+        success: false,
+        message: "Conversation not found"
+      })
+    }
+
+    // Ensure user is participant
+    if (!conversation.participants.some(p => p.toString() === userId.toString())) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not part of this conversation"
+      })
+    }
 
     const query = {
       conversation: conversationId
     }
 
-    // If cursor provided, fetch older messages
     if (cursor) {
       query.createdAt = { $lt: new Date(cursor) }
     }
@@ -145,7 +172,7 @@ export const getMessages = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      messages: messages.reverse(), // send ascending for UI
+      messages: messages.reverse(),
       nextCursor: hasMore ? messages[messages.length - 1].createdAt : null,
       hasMore
     })
