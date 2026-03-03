@@ -1,5 +1,30 @@
 import mongoose from "mongoose"
 
+const mediaSchema = new mongoose.Schema({
+  url: {
+    type: String
+  },
+  publicId: {
+    type: String
+  },
+  format: {
+    type: String
+  },
+  size: {
+    type: Number
+  },
+  duration: {
+    type: Number
+  },
+  width: {
+    type: Number
+  },
+  height: {
+    type: Number
+  }
+}, { _id: false })
+
+
 const messageSchema = new mongoose.Schema({
   conversation: {
     type: mongoose.Schema.Types.ObjectId,
@@ -13,16 +38,25 @@ const messageSchema = new mongoose.Schema({
   },
   content: {
     type: String,
+    trim: true,
     required: function () {
-        return this.messageType === "text"
-      }
+      return this.messageType === "text"
+    }
   },
   messageType: {
     type: String,
-    enum: ["text", "image", "audio"],
+    enum: ["text", "image", "audio", "video", "voice"],
     default: "text"
   },
+  media: {
+    type: mediaSchema,
+    default: null
+  },
   readBy: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User"
+  }],
+  deliveredTo: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: "User"
   }],
@@ -41,16 +75,12 @@ const messageSchema = new mongoose.Schema({
   deletedAt: {
     type: Date,
     default: null
-  },
-  deliveredTo: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User"
-  }]
+  }
 
 }, { timestamps: true })
 
 
-// Improve Schema for Performance
+// Performance Index
 messageSchema.index({ conversation: 1, createdAt: -1 })
 
 export default mongoose.model("Message", messageSchema)
