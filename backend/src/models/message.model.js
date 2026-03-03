@@ -6,48 +6,44 @@ const messageSchema = new mongoose.Schema({
     ref: "Conversation",
     required: true
   },
-
   sender: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
     required: true
   },
-
   content: {
     type: String,
     required: true
   },
-
   messageType: {
     type: String,
     enum: ["text", "image", "audio"],
     default: "text"
   },
-
   readBy: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: "User"
   }],
-
   isEdited: {
     type: Boolean,
     default: false
   },
-
   editedAt: {
     type: Date,
     default: null
   },
-
   isDeleted: {
     type: Boolean,
     default: false
   },
-
   deletedAt: {
     type: Date,
     default: null
-  }
+  },
+  deliveredTo: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User"
+  }]
 
 }, { timestamps: true })
 

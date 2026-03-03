@@ -6,29 +6,24 @@ const conversationSchema = new mongoose.Schema({
     enum: ["private", "group", "ai"],
     required: true
   },
-
   participants: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: "User"
   }],
-
   groupName: {
     type: String,
     default: null
   },
-
   groupAdmin: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
     default: null
   },
-
   lastMessage: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Message",
     default: null
   },
-
   unreadCounts: {
     type: Map,
     of: Number,
