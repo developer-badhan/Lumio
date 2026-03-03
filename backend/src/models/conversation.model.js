@@ -28,7 +28,11 @@ const conversationSchema = new mongoose.Schema({
     type: Map,
     of: Number,
     default: {}
-  }
+  },
+  deletedFor: [{
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "User"
+}]
 
 }, { timestamps: true })
 
