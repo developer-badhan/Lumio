@@ -1,5 +1,6 @@
 import Message from "../models/message.model.js"
 import Conversation from "../models/conversation.model.js"
+import Notification from "../models/notification.model.js"
 import { getIO, getOnlineUsers } from "../config/socket.js"
 
 
@@ -50,6 +51,20 @@ export const sendMessage = async (req, res, next) => {
     conversation.lastMessage = message._id
     await conversation.save()
 
+    for (const userId of conversation.participants) {
+      const id = userId.toString()
+
+      if (id !== senderId.toString()) {
+        await Notification.create({
+          recipient: id,
+          sender: senderId,
+          type: "message",
+          conversation: conversationId,
+          message: message._id
+        })
+      }
+    }
+
     const populatedMessage = await Message.findById(message._id)
       .populate("sender", "username profilePic")
 
@@ -86,6 +101,11 @@ export const sendMessage = async (req, res, next) => {
       io.to(conversationId).emit("message-delivered", {
         messageId: message._id,
         deliveredTo: message.deliveredTo
+      })
+      io.to(socketId).emit("new-notification", {
+        type: "message",
+        conversationId,
+        messageId: message._id
       })
     } catch (socketError) {
       console.error("Socket emission failed:", socketError.message)
