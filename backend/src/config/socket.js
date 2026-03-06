@@ -45,7 +45,6 @@ export const initializeSocket = (server) => {
   })
 
   io.on("connection", async (socket) => {
-
     const userId = socket.user._id
 
     // REGISTER USER ONLINE SECURELY
@@ -57,10 +56,15 @@ export const initializeSocket = (server) => {
 
     await User.findByIdAndUpdate(userId, { isOnline: true })
 
-    io.emit("user-status-change", {
+    // Tell everyone else this user is online (Optimized to broadcast)
+    socket.broadcast.emit("user-status-change", {
       userId,
       isOnline: true
     })
+
+    // NEW: Send the currently online users to this specific user immediately on connection
+    const currentlyOnline = Array.from(onlineUsers.keys());
+    socket.emit("initial-online-users", currentlyOnline);
 
     // JOIN CONVERSATION ROOM
     socket.on("join-conversation", (conversationId) => {
@@ -101,6 +105,7 @@ export const initializeSocket = (server) => {
             lastSeen: new Date()
           })
 
+          // Notify others that this user went offline
           io.emit("user-status-change", {
             userId,
             isOnline: false
