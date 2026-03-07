@@ -1,19 +1,15 @@
 import Notification from "../models/notification.model.js"
 import { getIO } from "../config/socket.js"
 
+
 // Get Notification Controller
 export const getNotifications = async (req, res, next) => {
   try {
-    const userId = req.user.id
+    const userId = req.user._id
     const { cursor, limit = 20 } = req.query
 
-    const query = {
-      recipient: userId
-    }
-
-    if (cursor) {
-      query.createdAt = { $lt: new Date(cursor) }
-    }
+    const query = { recipient: userId }
+    if (cursor) query.createdAt = { $lt: new Date(cursor) }
 
     const notifications = await Notification.find(query)
       .populate("sender", "name profilePic")
@@ -36,11 +32,12 @@ export const getNotifications = async (req, res, next) => {
   }
 }
 
+
 // Mark Notification Read Controller
 export const markNotificationAsRead = async (req, res, next) => {
   try {
     const { notificationId } = req.params
-    const userId = req.user.id
+    const userId = req.user._id.toString()
 
     const notification = await Notification.findOneAndUpdate(
       { _id: notificationId, recipient: userId },
@@ -49,27 +46,16 @@ export const markNotificationAsRead = async (req, res, next) => {
     )
 
     if (!notification) {
-      return res.status(404).json({
-        success: false,
-        message: "Notification not found"
-      })
+      return res.status(404).json({ success: false, message: "Notification not found" })
     }
 
     try {
-      const io = getIO()
-
-      io.to(userId).emit("notification-read", {
-        notificationId
-      })
-
+      getIO().to(userId).emit("notification-read", { notificationId })
     } catch (socketError) {
       console.error("Socket emission failed:", socketError.message)
     }
 
-    res.status(200).json({
-      success: true,
-      message: "Notification marked as read"
-    })
+    res.status(200).json({ success: true, message: "Notification marked as read" })
 
   } catch (error) {
     next(error)

@@ -380,7 +380,7 @@ export const getMe = async (req, res) => {
 }
 
 
-// Get All Users
+// Get All Users Controller
 export const getAllUsers = async (req, res) => {
     try {
         const users = await User.find({ _id: { $ne: req.user._id } })
