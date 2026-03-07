@@ -2,28 +2,28 @@ import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import api from "../services/axios";
+import { useAuth } from "../context/AuthContext";
 
+// OTP length
 const OTP_LENGTH = 6;
 
 const VerifyOTP = () => {
   const navigate = useNavigate();
-  const verifyToken = sessionStorage.getItem("verifyToken");
+  const { setPreVerifyToken } = useAuth();
 
-  const [otp, setOtp] = useState(new Array(OTP_LENGTH).fill(""));
-  const inputRefs = useRef([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  // verifyToken kept as state so handleVerify always reads the latest value
+  const [verifyToken, setVerifyToken] = useState(
+    () => localStorage.getItem("verifyToken")
+  );
+
+  const [otp, setOtp]             = useState(new Array(OTP_LENGTH).fill(""));
+  const inputRefs                  = useRef([]);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState("");
+  const [info, setInfo]           = useState("");
   const [countdown, setCountdown] = useState(30);
 
-  // Clean redirect logic
-  useEffect(() => {
-    if (!verifyToken) {
-      navigate("/register");
-    }
-  }, [verifyToken, navigate]);
-
-  // Countdown logic (original preserved)
+  // Countdown timer for resend button
   useEffect(() => {
     if (countdown <= 0) return;
     const t = setTimeout(() => setCountdown((s) => s - 1), 1000);
@@ -47,25 +47,17 @@ const VerifyOTP = () => {
     if (e.key === "Backspace" && !otp[idx] && inputRefs.current[idx - 1]) {
       inputRefs.current[idx - 1].focus();
     }
-    if (e.key === "ArrowLeft" && inputRefs.current[idx - 1]) {
-      inputRefs.current[idx - 1].focus();
-    }
-    if (e.key === "ArrowRight" && inputRefs.current[idx + 1]) {
-      inputRefs.current[idx + 1].focus();
-    }
+    if (e.key === "ArrowLeft"  && inputRefs.current[idx - 1]) inputRefs.current[idx - 1].focus();
+    if (e.key === "ArrowRight" && inputRefs.current[idx + 1]) inputRefs.current[idx + 1].focus();
   };
 
+  // Verify OTP
   const handleVerify = async (e) => {
     e.preventDefault();
     setError("");
     setInfo("");
 
-    if (!verifyToken) {
-      return navigate("/register");
-    }
-
     const enteredOtp = otp.join("");
-
     if (enteredOtp.length !== OTP_LENGTH) {
       return setError("Please enter the 6-digit code.");
     }
@@ -73,18 +65,13 @@ const VerifyOTP = () => {
     try {
       setLoading(true);
 
-      const res = await api.post(
-        "/auth/verify-otp",
-        { otp: enteredOtp },
-        {
-          headers: {
-            Authorization: `Bearer ${verifyToken}`,
-          },
-        }
-      );
+      // axios interceptor auto-attaches verifyToken from localStorage as Bearer header
+      const res = await api.post("/auth/verify-otp", { otp: enteredOtp });
 
       setInfo(res.data?.message || "Account verified successfully!");
-      sessionStorage.removeItem("verifyToken");
+
+      // Consume the verifyToken — it's single-use
+      localStorage.removeItem("verifyToken");
 
       setTimeout(() => navigate("/login"), 1400);
 
@@ -92,38 +79,29 @@ const VerifyOTP = () => {
       setError(err.response?.data?.message || "Verification failed");
 
       if (err.response?.status === 401) {
-        sessionStorage.removeItem("verifyToken");
-        setTimeout(() => navigate("/register"), 1400);
+        localStorage.removeItem("verifyToken");
+        setTimeout(() => navigate("/register"), 2000);
       }
     } finally {
       setLoading(false);
     }
   };
 
+  // Resend OTP
   const handleResend = async () => {
     setError("");
     setInfo("");
 
-    if (!verifyToken) {
-      return navigate("/register");
-    }
-
     try {
       setLoading(true);
 
-      const res = await api.post(
-        "/auth/otp-resend",
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${verifyToken}`,
-          },
-        }
-      );
+      // axios interceptor auto-attaches current verifyToken from localStorage
+      const res = await api.post("/auth/otp-resend", {});
 
-      //  Update token if backend returns new one
       if (res.data?.verifyToken) {
-        sessionStorage.setItem("verifyToken", res.data.verifyToken);
+        // Backend issued a fresh verifyToken (new 10m window)
+        setPreVerifyToken(res.data.verifyToken); // → localStorage
+        setVerifyToken(res.data.verifyToken);    // → React state
       }
 
       setInfo(res.data?.message || "OTP resent successfully.");
@@ -133,8 +111,9 @@ const VerifyOTP = () => {
       setError(err.response?.data?.message || "Failed to resend OTP");
 
       if (err.response?.status === 401) {
-        sessionStorage.removeItem("verifyToken");
-        setTimeout(() => navigate("/register"), 1400);
+        // verifyToken expired — can't resend without a valid session
+        localStorage.removeItem("verifyToken");
+        setTimeout(() => navigate("/register"), 2000);
       }
     } finally {
       setLoading(false);
@@ -144,7 +123,7 @@ const VerifyOTP = () => {
   return (
     <div className="min-h-screen bg-[#0f0b1f] flex items-center justify-center relative overflow-hidden p-4">
 
-      {/* Background Glow (OLD UI PRESERVED) */}
+      {/* Background Glow (UI PRESERVED) */}
       <div className="absolute w-150 h-150 bg-purple-600/20 rounded-full blur-[140px] -top-50 -left-37.5" />
       <div className="absolute w-125 h-125 bg-purple-500/10 rounded-full blur-[140px] -bottom-37.5 -right-25" />
 
@@ -159,9 +138,7 @@ const VerifyOTP = () => {
             </div>
           </div>
 
-          <h2 className="text-2xl font-bold text-white">
-            Verify your account
-          </h2>
+          <h2 className="text-2xl font-bold text-white">Verify your account</h2>
           <p className="text-purple-300/70 mt-2 text-sm">
             Enter the 6-digit code sent to your email
           </p>
@@ -186,7 +163,7 @@ const VerifyOTP = () => {
           </div>
 
           {error && <p className="text-red-400 text-sm text-center">{error}</p>}
-          {info && <p className="text-green-400 text-sm text-center">{info}</p>}
+          {info  && <p className="text-green-400 text-sm text-center">{info}</p>}
 
           <button
             type="submit"
@@ -218,7 +195,7 @@ const VerifyOTP = () => {
         <div className="mt-6 text-center text-sm text-purple-300/60">
           <button
             onClick={() => {
-              sessionStorage.removeItem("verifyToken");
+              localStorage.removeItem("verifyToken");
               navigate("/register");
             }}
             className="text-purple-400 hover:text-purple-300 font-medium"

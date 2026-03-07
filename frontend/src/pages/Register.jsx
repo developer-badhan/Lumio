@@ -7,10 +7,12 @@ import {
   Camera,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import api from "../services/axios";
+import { useAuth } from "../context/AuthContext.jsx"; 
+import api from "../services/axios.js";
 
 const Register = () => {
   const navigate = useNavigate();
+  const { setPreVerifyToken } = useAuth();
 
   const [form, setForm] = useState({
     name: "",
@@ -62,7 +64,7 @@ const Register = () => {
       const res = await api.post("/auth/register", data);
 
       if (res.data?.verifyToken) {
-        sessionStorage.setItem("verifyToken", res.data.verifyToken);
+        setPreVerifyToken(res.data.verifyToken);
       }
 
       navigate("/verify-otp");

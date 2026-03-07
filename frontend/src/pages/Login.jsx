@@ -2,15 +2,15 @@ import React, { useState } from "react";
 import { Mail, Lock, ArrowRight } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../services/axios";
-import { useAuth } from "../context/AuthContext.jsx"; 
+import { useAuth } from "../context/AuthContext.jsx";
 
 const Login = () => {
-  const navigate = useNavigate();
-  const { login } = useAuth(); 
+  const navigate    = useNavigate();
+  const { login } = useAuth();
 
-  const [form, setForm] = useState({ email: "", password: "" });
+  const [form, setForm]       = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError]     = useState("");
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -24,17 +24,27 @@ const Login = () => {
       setLoading(true);
 
       const res = await api.post("/auth/login", form);
+
+      // Store access token + user in AuthContext (also clears any leftover verifyToken)
       login(res.data.accessToken, res.data.user);
 
       navigate("/dashboard");
 
     } catch (err) {
       if (err.response?.status === 403) {
-        setError("Please verify your account first.");
-        navigate("/register");
+        setError("Account not verified. Redirecting...");
+
+        const hasVerifyToken = localStorage.getItem("verifyToken");
+
+        setTimeout(() => {
+          navigate(hasVerifyToken ? "/verify-otp" : "/register");
+        }, 1500);
+
         return;
       }
+
       setError(err.response?.data?.message || "Login failed");
+
     } finally {
       setLoading(false);
     }
@@ -43,6 +53,7 @@ const Login = () => {
   return (
     <div className="min-h-screen bg-[#0f0b1f] flex items-center justify-center relative overflow-hidden">
 
+      {/* Background Glow (UI PRESERVED) */}
       <div className="absolute w-150 h-150 bg-purple-600/20 rounded-full blur-[140px] -top-50 -left-37.5" />
       <div className="absolute w-125 h-125 bg-purple-500/10 rounded-full blur-[140px] -bottom-37.5 -right-25" />
 
@@ -108,10 +119,11 @@ const Login = () => {
 
         <div className="mt-6 text-center text-sm text-purple-300/60">
           Don't have an account?{" "}
-          <Link to="/login" className="text-purple-400 hover:text-purple-300 font-medium">
-              Login
-            </Link>
+          <a href="/register" className="text-purple-400 hover:text-purple-300 font-medium">
+            Sign up
+          </a>
         </div>
+
       </div>
     </div>
   );

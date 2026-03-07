@@ -2,39 +2,67 @@ import axios from "axios";
 
 const api = axios.create({
   baseURL: "http://localhost:3000/api",
-  withCredentials: true,
+  withCredentials: true, // required for httpOnly refreshToken cookie
 });
 
-// Attach access token automatically
+
+// Request Interceptor 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  const token       = localStorage.getItem("token");
+  const verifyToken = localStorage.getItem("verifyToken");
+
+  const isOtpRoute =
+    config.url?.includes("/auth/verify-otp") ||
+    config.url?.includes("/auth/otp-resend");
+
+  if (isOtpRoute) {
+    // OTP routes exclusively use verifyToken (VERIFY_TOKEN secret)
+    if (verifyToken) {
+      config.headers.Authorization = `Bearer ${verifyToken}`;
+    }
+    return config;
+  }
+
+  // All other routes use the standard access token
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
   return config;
 });
 
-// Handle 401 globally with refresh logic
+
+// Token Refresh Queue 
 let isRefreshing = false;
-let failedQueue = [];
+let failedQueue  = [];
 
 const processQueue = (error, token = null) => {
   failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
-    }
+    if (error) prom.reject(error);
+    else prom.resolve(token);
   });
   failedQueue = [];
 };
 
+
+// Response Interceptor
 api.interceptors.response.use(
   (response) => response,
+
   async (error) => {
     const originalRequest = error.config;
 
-    // If 401 and we haven't already retried this request
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      // If a refresh is already in progress, queue this request
+    // OTP routes use VERIFY_TOKEN secret — a 401 here means the verify session
+    const isVerifyRoute =
+      originalRequest.url.includes("/auth/verify-otp") ||
+      originalRequest.url.includes("/auth/otp-resend");
+
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !isVerifyRoute
+    ) {
+      // Queue parallel 401s while a refresh is already in-flight
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -47,26 +75,31 @@ api.interceptors.response.use(
       }
 
       originalRequest._retry = true;
-      isRefreshing = true;
+      isRefreshing            = true;
 
       try {
-        // Cookie is sent automatically via withCredentials
+        // Refresh cookie is httpOnly — sent automatically via withCredentials
         const { data } = await api.post("/auth/refresh-token");
-        const newToken = data.accessToken;
+        const newToken  = data.accessToken;
 
         localStorage.setItem("token", newToken);
         api.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
         processQueue(null, newToken);
 
-        // Retry the original failed request
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);
+
       } catch (refreshError) {
-        // Refresh token itself is expired or invalid → force logout
         processQueue(refreshError, null);
         localStorage.removeItem("token");
-        window.location.href = "/login";
+
+        // Don't redirect if user is mid-OTP registration flow
+        if (!window.location.pathname.includes("/verify-otp")) {
+          window.location.href = "/login";
+        }
+
         return Promise.reject(refreshError);
+
       } finally {
         isRefreshing = false;
       }
