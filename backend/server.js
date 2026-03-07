@@ -11,7 +11,7 @@ dotenv.config()
 connectDB()
 
 // Use PORT from environment or fallback
-const PORT = process.env.PORT || 5000
+const PORT = process.env.PORT || 3000
 
 // Server is created 
 const server = http.createServer(app)
