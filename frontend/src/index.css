@@ -23,3 +23,158 @@
   background-color: rgba(255,255,255,0.05);
 }
 
+
+.action-btn{
+  padding:8px;
+  border-radius:10px;
+  color:#cbd5f5;
+  transition:all .2s ease;
+}
+
+.action-btn:hover{
+  background:rgba(139,92,246,0.18);
+  color:#c4b5fd;
+  transform:translateY(-1px);
+}
+
+.aurora-bg{
+
+  background:
+  radial-gradient(circle at 20% 30%, rgba(139,92,246,0.15), transparent 40%),
+  radial-gradient(circle at 80% 70%, rgba(168,85,247,0.12), transparent 45%),
+  radial-gradient(circle at 40% 80%, rgba(124,58,237,0.10), transparent 50%);
+
+  animation: auroraMove 22s ease infinite;
+  filter: blur(80px);
+}
+
+@keyframes auroraMove{
+
+  0%{
+    transform: translate(0px,0px) scale(1);
+  }
+
+  50%{
+    transform: translate(-60px,40px) scale(1.1);
+  }
+
+  100%{
+    transform: translate(0px,0px) scale(1);
+  }
+
+}
+
+@keyframes float1{
+  0%{transform:translate(0,0)}
+  50%{transform:translate(80px,80px)}
+  100%{transform:translate(0,0)}
+}
+
+@keyframes float2{
+  0%{transform:translate(0,0)}
+  50%{transform:translate(-80px,-60px)}
+  100%{transform:translate(0,0)}
+}
+
+@keyframes float3{
+  0%{transform:translate(0,0)}
+  50%{transform:translate(60px,-60px)}
+  100%{transform:translate(0,0)}
+}
+
+.animate-float1{
+  animation:float1 20s ease-in-out infinite;
+}
+
+.animate-float2{
+  animation:float2 24s ease-in-out infinite;
+}
+
+.animate-float3{
+  animation:float3 26s ease-in-out infinite;
+}
+
+
+.telegram-lines{
+
+  background-image:
+  linear-gradient(
+    120deg,
+    rgba(139,92,246,0.08) 1px,
+    transparent 1px
+  ),
+  linear-gradient(
+    60deg,
+    rgba(139,92,246,0.05) 1px,
+    transparent 1px
+  );
+
+  background-size: 120px 120px;
+
+  animation: linesMove 60s linear infinite;
+}
+
+@keyframes linesMove{
+
+  from{
+    background-position:0 0,0 0;
+  }
+
+  to{
+    background-position:300px 150px,-300px -150px;
+  }
+
+}
+
+.noise-bg{
+
+  background-image:
+  radial-gradient(rgba(255,255,255,0.2) 1px, transparent 1px);
+
+  background-size:3px 3px;
+
+}
+
+.custom-scrollbar::-webkit-scrollbar{
+  width:6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb{
+  background:#7c3aed;
+  border-radius:10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track{
+  background:transparent;
+}
+
+
+@keyframes typingFade{
+  from{
+    opacity:0;
+    transform:translateY(6px);
+  }
+  to{
+    opacity:1;
+    transform:translateY(0);
+  }
+}
+
+.dot{
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:#a78bfa;
+  animation:typingBounce 1.2s infinite ease-in-out;
+}
+
+@keyframes typingBounce{
+  0%,80%,100%{
+    transform:scale(.6);
+    opacity:.4;
+  }
+  40%{
+    transform:scale(1);
+    opacity:1;
+  }
+}
