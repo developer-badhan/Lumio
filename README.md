@@ -87,7 +87,7 @@ It includes advanced messaging, AI-powered interactions, calling features, secur
 
 ```
 backend/
-│
+│── server.js          #  Main Entry Point to Start the App
 └── src/
     ├── config/        # Database & service configurations
     ├── controllers/   # Business logic
@@ -96,7 +96,7 @@ backend/
     ├── middleware/    # Auth & custom middleware
     ├── utils/         # Utility functions
     ├── services/      # External services logic
-    └── server.js      # Entry point
+    └── app.js         # Entry point
 ```
 
 ---

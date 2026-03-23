@@ -42,6 +42,12 @@ const userSchema = new mongoose.Schema({
         type: String,
         default: "",    
     },
+    bio: {
+        type: String,
+        default: "",
+        trim: true,
+        maxlength: [150, "Bio cannot exceed 150 characters"]
+    },
     isOnline: {
         type: Boolean,
         default: false
@@ -49,7 +55,11 @@ const userSchema = new mongoose.Schema({
     lastSeen: {
         type: Date,
         default: null
-    }
+    },
+    blockedUsers: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+        }]
 }, { timestamps: true }) 
 
 

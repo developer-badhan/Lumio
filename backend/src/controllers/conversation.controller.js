@@ -170,3 +170,41 @@ export const softDeleteConversation = async (req, res, next) => {
     next(error)
   }
 }
+
+// Clear Chat Controller (non-destructive, per-user timestamp)
+export const clearChat = async (req, res, next) => {
+  try {
+    const { conversationId } = req.params
+    const userId = req.user._id.toString()
+
+    const conversation = await Conversation.findById(conversationId)
+    if (!conversation)
+      return res.status(404).json({ success: false, message: "Conversation not found" })
+
+    if (!conversation.participants.some(p => p.toString() === userId))
+      return res.status(403).json({ success: false, message: "Not part of this conversation" })
+
+    // Upsert: update existing entry or push new one
+    const existingIdx = conversation.clearedFor.findIndex(
+      c => c.user.toString() === userId
+    )
+    if (existingIdx >= 0) {
+      conversation.clearedFor[existingIdx].clearedAt = new Date()
+    } else {
+      conversation.clearedFor.push({ user: userId, clearedAt: new Date() })
+    }
+
+    await conversation.save()
+
+    // Tell this user's socket to empty the message list on their end
+    try {
+      getIO().to(conversationId).emit("chat-cleared", { conversationId, userId })
+    } catch (e) {
+      console.error("Socket emit failed:", e.message)
+    }
+
+    return res.status(200).json({ success: true, message: "Chat cleared for you" })
+  } catch (error) {
+    next(error)
+  }
+}

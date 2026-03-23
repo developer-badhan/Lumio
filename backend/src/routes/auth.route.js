@@ -10,6 +10,9 @@ import {
   getAllUsers,
   changeProfilePic,
   changePassword,
+  updateProfile,
+  blockUser,
+  unblockUser
 } from "../controllers/auth.controller.js"
 import { profileMediaUpload } from "../middleware/upload.middleware.js"
 import authenticateRoute from "../middleware/auth.middleware.js"
@@ -28,7 +31,10 @@ router.post("/refresh-token", refreshToken)
 // Protected Routes
 router.get("/me", authenticateRoute, getMe)
 router.get("/users", authenticateRoute, getAllUsers)
+router.post("/block/:userId", authenticateRoute, blockUser)
 router.patch("/change-profile-pic", authenticateRoute, profileMediaUpload, changeProfilePic)
 router.patch("/change-password", authenticateRoute, changePassword)
+router.patch("/update-profile", authenticateRoute, profileMediaUpload, updateProfile)
+router.delete("/unblock/:userId", authenticateRoute, unblockUser)
 
 export default router

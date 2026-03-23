@@ -75,7 +75,19 @@ const messageSchema = new mongoose.Schema({
   deletedAt: {
     type: Date,
     default: null
-  }
+  },
+  replyTo: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Message",
+  default: null
+  },
+  reactions: [
+    {
+      emoji: { type: String, required: true },
+      users: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+      _id: false
+    }
+  ],
 
 }, { timestamps: true })
 

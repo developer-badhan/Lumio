@@ -4,7 +4,8 @@ import {
   createGroupConversation,
   getUserConversations,
   markConversationAsRead,
-  softDeleteConversation
+  softDeleteConversation,
+  clearChat
 } from "../controllers/conversation.controller.js"
 import authMiddleware from "../middleware/auth.middleware.js"
 
@@ -16,6 +17,7 @@ router.post("/private", authMiddleware, getOrCreatePrivateConversation)
 router.post("/group", authMiddleware, createGroupConversation)
 router.get("/", authMiddleware, getUserConversations)
 router.patch("/read/:conversationId", authMiddleware, markConversationAsRead)
+router.patch("/clear/:conversationId", authMiddleware, clearChat)
 router.delete("/:conversationId", authMiddleware, softDeleteConversation)
 
 export default router

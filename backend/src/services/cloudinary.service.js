@@ -81,7 +81,7 @@ export const uploadMedia = async (file, userId) => {
   }
 }
 
-// // Delete media from Cloudinary
+// Delete media from Cloudinary
 export const deleteMedia = async (publicId, resourceType = "auto") => {
   await cloudinary.uploader.destroy(publicId, {
     resource_type: resourceType

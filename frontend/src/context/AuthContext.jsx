@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/axios';
+import { updateProfile as updateProfileApi } from '../services/profile';
 
 const AuthContext = createContext();
 
@@ -33,10 +34,25 @@ export const AuthProvider = ({ children }) => {
     checkAuth();
   }, []);
 
+  // ── Directly set user state (used by socket online/offline events) 
   const updateUser = (updatedUserData) => {
     setUser(updatedUserData);
   };
 
+  // ── Call API + update local state 
+  // Returns { success, user, error } — Settings.jsx uses this to show feedback.
+  const updateProfile = async (payload) => {
+    try {
+      const { data } = await updateProfileApi(payload);
+      // Merge updated fields into existing user state so unrelated fields
+      // (isOnline, lastSeen, etc.) are preserved.
+      setUser(prev => ({ ...prev, ...data.user }));
+      return { success: true, user: data.user };
+    } catch (err) {
+      const message = err.response?.data?.message || 'Failed to update profile';
+      return { success: false, error: message };
+    }
+  };
 
   // Store verifyToken after registration 
   // Called by Register.jsx after POST /auth/register succeeds.
@@ -71,7 +87,15 @@ export const AuthProvider = ({ children }) => {
 
   return (
     // updateUser is now exposed alongside the existing values
-    <AuthContext.Provider value={{ user, login, logout, loading, setPreVerifyToken, updateUser }}>
+    <AuthContext.Provider value={{ 
+        user, 
+        login, 
+        logout, 
+        loading, 
+        setPreVerifyToken, 
+        updateUser,
+        updateProfile,
+       }}>
       {children}
     </AuthContext.Provider>
   );

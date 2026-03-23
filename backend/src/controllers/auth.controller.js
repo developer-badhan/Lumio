@@ -296,8 +296,10 @@ export const login = async (req, res) => {
                 _id: user._id,
                 name: user.name,
                 email: user.email,
+                bio:  user.bio,
                 isVerified: user.isVerified,
-                profilePic: user.profilePic
+                profilePic: user.profilePic,
+                blockedUsers: user.blockedUsers ?? []
             }
         })
 
@@ -448,6 +450,79 @@ export const changeProfilePic = async (req, res) => {
 }
 
 
+// User Profile Update Controller
+export const updateProfile = async (req, res) => {
+    try {
+        const { name, bio } = req.body
+        const user = await User.findById(req.user._id)
+ 
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" })
+        }
+ 
+        // Name update 
+        if (name !== undefined) {
+            const trimmed = name.trim()
+            if (!trimmed) {
+                return res.status(400).json({ success: false, message: "Name cannot be empty" })
+            }
+            user.name = trimmed
+        }
+ 
+        // Bio update 
+        if (bio !== undefined) {
+            if (bio.length > 150) {
+                return res.status(400).json({ success: false, message: "Bio cannot exceed 150 characters" })
+            }
+            user.bio = bio.trim()
+        }
+ 
+        //  Profile picture update 
+        if (req.file) {
+            // Delete the old picture from Cloudinary if one exists
+            if (user.profilePicPublicId) {
+                await deleteProfileImg(user.profilePicPublicId)
+            }
+            try {
+                const { url, publicId } = await uploadProfileImg(req.file.path, user._id.toString())
+                user.profilePic = url
+                user.profilePicPublicId = publicId
+            } catch (uploadError) {
+                return res.status(500).json({
+                    success: false,
+                    message: "Image upload failed: " + uploadError.message
+                })
+            } finally {
+                fs.unlink(req.file.path, () => {})
+            }
+        }
+ 
+        await user.save()
+ 
+        return res.status(200).json({
+            success: true,
+            message: "Profile updated successfully",
+            user: {
+                _id:        user._id,
+                name:       user.name,
+                email:      user.email,
+                bio:        user.bio,
+                profilePic: user.profilePic,
+                isVerified: user.isVerified,
+                isOnline:   user.isOnline,
+            }
+        })
+ 
+    } catch (error) {
+        if (req.file) fs.unlink(req.file.path, () => {})
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Internal server error"
+        })
+    }
+}
+
+
 // Change Password Controller
 export const changePassword = async (req, res) => {
     try {
@@ -493,4 +568,41 @@ export const changePassword = async (req, res) => {
             message: error.message || "Internal server error"
         })
     }
+}
+
+// Block User Controller
+export const blockUser = async (req, res) => {
+  try {
+    const { userId: targetId } = req.params
+    const currentUserId = req.user._id.toString()
+
+    if (targetId === currentUserId)
+      return res.status(400).json({ success: false, message: "Cannot block yourself" })
+
+    await User.findByIdAndUpdate(
+      currentUserId,
+      { $addToSet: { blockedUsers: targetId } }
+    )
+
+    return res.status(200).json({ success: true, message: "User blocked" })
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message })
+  }
+}
+
+// Unblock User Controller
+export const unblockUser = async (req, res) => {
+  try {
+    const { userId: targetId } = req.params
+    const currentUserId = req.user._id.toString()
+
+    await User.findByIdAndUpdate(
+      currentUserId,
+      { $pull: { blockedUsers: targetId } }
+    )
+
+    return res.status(200).json({ success: true, message: "User unblocked" })
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message })
+  }
 }
