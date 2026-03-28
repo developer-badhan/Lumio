@@ -1,5 +1,6 @@
 import { Server } from "socket.io"
 import jwt from "jsonwebtoken"
+import { registerCallHandlers } from "./call.socket.js"
 import User from "../models/user.model.js"
 
 // In-memory map: userId → Set of socketIds (supports multiple tabs/devices)
@@ -81,6 +82,9 @@ export const initializeSocket = (server) => {
         }
       }
     })
+
+    // Caller function handler 
+    registerCallHandlers(socket, io, onlineUsers)
   })
 
   return io

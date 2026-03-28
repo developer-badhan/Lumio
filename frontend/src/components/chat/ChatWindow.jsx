@@ -6,6 +6,7 @@ import {
 import { useChat } from '../../hooks/useChat';
 import { useAuth } from '../../context/AuthContext';
 import { SocketContext } from '../../context/SocketContext';
+import { useCall } from '../../hooks/useCall';    
 import ChatBubble from './ChatBubble';
 import MessageInput from './MessageInput';
 import TypingIndicator from './TypingIndicator';
@@ -27,6 +28,14 @@ const ChatWindow = () => {
 
   const { user: currentUser } = useAuth();
   const { onlineUsers }       = useContext(SocketContext);
+
+  // ── Call integration ───────────────────────────────────────────────────────
+  // initiateCall: starts an outgoing call for this conversation
+  // callStatus:   'idle' | 'calling' | 'incoming' | 'active'
+  //   When not idle, the call buttons are disabled so the user can't accidentally
+  //   start a second call while one is already in progress.
+  const { initiateCall, callStatus } = useCall();
+  const isInCall = callStatus !== 'idle';
 
   // ── Scroll ────────────────────────────────────────────────────────────────
   const scrollRef = useRef(null);
@@ -155,9 +164,44 @@ const ChatWindow = () => {
 
         {/* Right — action buttons */}
         <div className="flex items-center gap-2">
-          <button className="action-btn"><Phone size={20} /></button>
-          <button className="action-btn"><Video size={20} /></button>
-          <button className="action-btn"><Info  size={20} /></button>
+
+          {/* ── Audio call button ──────────────────────────────────────── */}
+          {/*
+            Calls initiateCall with type 'audio'.
+            Disabled when already in a call (isInCall) or when the other user
+            is blocked (blocked users can't receive calls from us).
+            For group conversations, audio calls are also supported.
+          */}
+          <button
+            className="action-btn disabled:opacity-40 disabled:cursor-not-allowed"
+            disabled={isInCall || isBlocked}
+            title={isInCall ? 'Already in a call' : 'Start audio call'}
+            onClick={() =>
+              activeConversation?._id &&
+              initiateCall(activeConversation._id, 'audio')
+            }
+          >
+            <Phone size={20} />
+          </button>
+
+          {/* ── Video call button ──────────────────────────────────────── */}
+          {/*
+            Calls initiateCall with type 'video'.
+            Same disabled conditions as audio call.
+          */}
+          <button
+            className="action-btn disabled:opacity-40 disabled:cursor-not-allowed"
+            disabled={isInCall || isBlocked}
+            title={isInCall ? 'Already in a call' : 'Start video call'}
+            onClick={() =>
+              activeConversation?._id &&
+              initiateCall(activeConversation._id, 'video')
+            }
+          >
+            <Video size={20} />
+          </button>
+
+          <button className="action-btn"><Info size={20} /></button>
 
           {/* MoreVertical with dropdown */}
           <div className="relative" ref={menuRef}>

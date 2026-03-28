@@ -12,7 +12,7 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ["message", "group-add", "mention"],
+    enum: ["message", "group-add", "mention", "call"],
     required: true
   },
   conversation: {

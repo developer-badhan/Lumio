@@ -3,6 +3,8 @@ import { AuthProvider, useAuth } from "./context/AuthContext.jsx";
 import { SocketProvider } from "./context/SocketContext.jsx";
 import { ChatProvider } from "./context/ChatContext.jsx";
 import { ToastProvider } from "./context/ToastContext.jsx";
+import { CallProvider } from "./context/CallContext.jsx"; 
+import CallModal from "./components/ui/CallModal.jsx";      
 import Dashboard from "./pages/Dashboard.jsx";
 import Login from "./pages/Login.jsx";
 import ChangePassword from "./pages/ChangePassword.jsx";
@@ -24,7 +26,10 @@ const ProtectedLayout = () => {
   return (
     <SocketProvider>
       <ChatProvider>
-        <Outlet />
+        <CallProvider>
+          <Outlet />
+          <CallModal />
+        </CallProvider>
       </ChatProvider>
     </SocketProvider>
   );

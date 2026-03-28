@@ -8,6 +8,7 @@ import authRouter from "./routes/auth.route.js"
 import conversationRouter from "./routes/conversation.route.js"
 import messageRouter from "./routes/message.route.js"
 import notificationRouter from "./routes/notification.route.js"
+import callRouter from "./routes/call.route.js"
 
 // Initialize Express App
 const app = express()
@@ -30,6 +31,7 @@ app.use("/api/auth", authRouter)
 app.use("/api/conversations", conversationRouter)
 app.use("/api/messages", messageRouter)
 app.use("/api/notifications", notificationRouter)
+app.use("/api/calls", callRouter)
 
 // Error Handling Middleware
 app.use(errorHandler)
