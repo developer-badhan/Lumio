@@ -5,6 +5,20 @@ import * as chatService from "../services/chat";
 
 const ChatContext = createContext();
 
+//  GROUP_EVENTS 
+const GROUP_EVENTS = Object.freeze({
+  CREATED:               "group:created",
+  INFO_UPDATED:          "group:info-updated",
+  MEMBER_ADDED:          "group:member-added",
+  MEMBER_REMOVED:        "group:member-removed",
+  ADMIN_PROMOTED:        "group:admin-promoted",
+  ADMIN_DEMOTED:         "group:admin-demoted",
+  RESTRICTION_TOGGLED:   "group:restriction-toggled",
+  OWNERSHIP_TRANSFERRED: "group:ownership-transferred",
+  MEMBER_LEFT:           "group:member-left",
+  DELETED:               "group:deleted",
+});
+
 const getOptimisticType = (file) => {
   if (!file) return "text";
   const { type } = file;
@@ -13,6 +27,11 @@ const getOptimisticType = (file) => {
   if (type.startsWith("audio/")) return "voice";
   return "text";
 };
+
+/** Returns true if the given userId string is present in an addedMembers array
+ *  of either plain strings or { _id } objects. */
+const isUserInList = (list = [], userId) =>
+  list.some(m => (m._id?.toString() ?? m.toString()) === userId);
 
 export const ChatProvider = ({ children }) => {
   const { socket }                        = useSocket();
@@ -350,6 +369,260 @@ export const ChatProvider = ({ children }) => {
     const onNotificationRead = ({ notificationId }) =>
       setNotifications(prev => prev.map(n => n._id === notificationId ? { ...n, isRead: true } : n));
 
+
+    // ── GROUP_EVENTS handlers ─────────────────────────────────────────────────
+    //  Payload shapes are taken directly from backend group.controller.js.
+ 
+    /**
+     * group:created
+     * Payload: { group: { _id, groupName, groupIcon, isRestricted, type,
+     *                     participantCount, lastMessage, createdAt, updatedAt, … } }
+     *
+     * Fired for ALL participants when a new group is created.
+     * The creator already has the group in state (from the API response), so we
+     * guard with an exists-check to prevent duplicates.
+     * Non-creator members receive this and add the group to their sidebar.
+     */
+    const onGroupCreated = ({ group }) => {
+      setConversations(prev => {
+        if (prev.some(c => c._id === group._id)) return prev;
+        const newEntry = {
+          _id:          group._id,
+          type:         "group",
+          groupName:    group.groupName,
+          groupIcon:    group.groupIcon  ?? "",
+          isRestricted: group.isRestricted ?? false,
+          lastMessage:  group.lastMessage ?? null,
+          unreadCounts: {},
+          createdAt:    group.createdAt,
+          updatedAt:    group.updatedAt ?? group.createdAt,
+        };
+        return [newEntry, ...prev];
+      });
+    };
+ 
+    /**
+     * group:info-updated
+     * Payload: { groupId, groupName, groupIcon, updatedBy }
+     *
+     * Update sidebar entry AND activeConversation (so ChatWindow header reflects
+     * the change immediately without a full refetch).
+     */
+    const onGroupInfoUpdated = ({ groupId, groupName, groupIcon }) => {
+      setConversations(prev =>
+        prev.map(c =>
+          c._id === groupId
+            ? {
+                ...c,
+                ...(groupName !== undefined && { groupName }),
+                ...(groupIcon !== undefined && { groupIcon }),
+              }
+            : c
+        )
+      );
+      if (activeConversationRef.current?._id === groupId) {
+        setActiveConversation(prev =>
+          prev
+            ? {
+                ...prev,
+                ...(groupName !== undefined && { groupName }),
+                ...(groupIcon !== undefined && { groupIcon }),
+              }
+            : prev
+        );
+      }
+    };
+ 
+    /**
+     * group:member-added
+     * Payload: { groupId, groupName, addedMembers, addedBy, totalMembers, joinedViaInvite? }
+     *
+     * addedMembers is an array of { _id, name, profilePic } objects.
+     * If the current user is in addedMembers, they were just added to a group they
+     * weren't in before — reload conversations to get the full document.
+     * For existing members, update the participant count.
+     */
+    const onGroupMemberAdded = ({ groupId, addedMembers = [], totalMembers }) => {
+      if (isUserInList(addedMembers, currentUser?._id)) {
+        // Current user was added — full reload to get the proper conversation object
+        loadConversations();
+      } else {
+        // A different user was added — just refresh the count in the sidebar
+        setConversations(prev =>
+          prev.map(c =>
+            c._id === groupId ? { ...c, participantCount: totalMembers } : c
+          )
+        );
+        if (activeConversationRef.current?._id === groupId) {
+          setActiveConversation(prev =>
+            prev ? { ...prev, participantCount: totalMembers } : prev
+          );
+        }
+      }
+    };
+ 
+    /**
+     * group:member-removed
+     * Two payloads (backend emits differently per audience):
+     *   Removed user →  { groupId, groupName, removedBy, self: true }
+     *   Remaining    →  { groupId, removedUserId, removedBy }
+     *
+     * If current user is removed → evict the conversation from state and clear
+     * the active view.  Otherwise → decrement participant count.
+     */
+    const onGroupMemberRemoved = ({ groupId, removedUserId, self }) => {
+      const isCurrentUserRemoved =
+        self === true || removedUserId === currentUser?._id;
+ 
+      if (isCurrentUserRemoved) {
+        setConversations(prev => prev.filter(c => c._id !== groupId));
+        if (activeConversationRef.current?._id === groupId) {
+          setActiveConversation(null);
+          setMessages([]);
+        }
+      } else {
+        // Another member was removed — update admins list on activeConversation
+        // (GroupContext will handle the detailed member list refresh)
+        if (activeConversationRef.current?._id === groupId && removedUserId) {
+          setActiveConversation(prev => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              admins: prev.admins?.filter(
+                a => (a._id?.toString() ?? a.toString()) !== removedUserId
+              ) ?? [],
+              participantCount: Math.max(0, (prev.participantCount ?? 1) - 1),
+            };
+          });
+        }
+      }
+    };
+ 
+    /**
+     * group:member-left
+     * Payload: { groupId, leftUser: { _id, name } }
+     *
+     * A member voluntarily left — remove them from the admins list on
+     * activeConversation and decrement participantCount.
+     */
+    const onGroupMemberLeft = ({ groupId, leftUser }) => {
+      if (activeConversationRef.current?._id === groupId && leftUser?._id) {
+        setActiveConversation(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            admins: prev.admins?.filter(
+              a => (a._id?.toString() ?? a.toString()) !== leftUser._id.toString()
+            ) ?? [],
+            participantCount: Math.max(0, (prev.participantCount ?? 1) - 1),
+          };
+        });
+      }
+    };
+ 
+    /**
+     * group:admin-promoted
+     * Payload: { groupId, promotedUserId, promotedBy }
+     *
+     * Add promotedUserId to activeConversation.admins so GroupContext and
+     * any role-checking hooks pick it up immediately.
+     */
+    const onGroupAdminPromoted = ({ groupId, promotedUserId }) => {
+      if (activeConversationRef.current?._id === groupId && promotedUserId) {
+        setActiveConversation(prev => {
+          if (!prev) return prev;
+          const alreadyAdmin = prev.admins?.some(
+            a => (a._id?.toString() ?? a.toString()) === promotedUserId
+          );
+          if (alreadyAdmin) return prev;
+          return {
+            ...prev,
+            admins: [...(prev.admins ?? []), { _id: promotedUserId }],
+          };
+        });
+      }
+    };
+ 
+    /**
+     * group:admin-demoted
+     * Payload: { groupId, demotedUserId, demotedBy }
+     */
+    const onGroupAdminDemoted = ({ groupId, demotedUserId }) => {
+      if (activeConversationRef.current?._id === groupId && demotedUserId) {
+        setActiveConversation(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            admins: prev.admins?.filter(
+              a => (a._id?.toString() ?? a.toString()) !== demotedUserId
+            ) ?? [],
+          };
+        });
+      }
+    };
+ 
+    /**
+     * group:restriction-toggled
+     * Payload: { groupId, isRestricted, changedBy }
+     *
+     * Critical: update both conversations (for sidebar badge) AND
+     * activeConversation (so MessageInput disables/enables instantly).
+     */
+    const onGroupRestrictionToggled = ({ groupId, isRestricted }) => {
+      setConversations(prev =>
+        prev.map(c => c._id === groupId ? { ...c, isRestricted } : c)
+      );
+      if (activeConversationRef.current?._id === groupId) {
+        setActiveConversation(prev =>
+          prev ? { ...prev, isRestricted } : prev
+        );
+      }
+    };
+ 
+    /**
+     * group:ownership-transferred
+     * Payload: { groupId, newOwner: { _id, name }, previousOwner: { _id, name } }
+     *
+     * Swap groupAdmin on activeConversation.  Also ensure newOwner is in
+     * admins (they're promoted automatically on the backend).
+     */
+    const onGroupOwnershipTransferred = ({ groupId, newOwner }) => {
+      if (activeConversationRef.current?._id === groupId && newOwner?._id) {
+        setActiveConversation(prev => {
+          if (!prev) return prev;
+          const alreadyAdmin = prev.admins?.some(
+            a => (a._id?.toString() ?? a.toString()) === newOwner._id.toString()
+          );
+          return {
+            ...prev,
+            groupAdmin: newOwner,
+            admins: alreadyAdmin
+              ? prev.admins
+              : [...(prev.admins ?? []), { _id: newOwner._id, name: newOwner.name }],
+          };
+        });
+      }
+    };
+ 
+    /**
+     * group:deleted
+     * Payload: { groupId, groupName, deletedBy }
+     *
+     * Remove from sidebar and evict active view.  Fired BEFORE the DB delete
+     * on the backend, so the conversation still exists in the database for the
+     * instant this fires — no refetch needed.
+     */
+    const onGroupDeleted = ({ groupId }) => {
+      setConversations(prev => prev.filter(c => c._id !== groupId));
+      if (activeConversationRef.current?._id === groupId) {
+        setActiveConversation(null);
+        setMessages([]);
+      }
+    };
+    
+
+
+    // ── Register all listeners ───────────────────────────────────────────────
     socket.on("new-message",         onNewMessage);
     socket.on("unread-update",       onUnreadUpdate);
     socket.on("message-delivered",   onMessageDelivered);
@@ -362,6 +635,16 @@ export const ChatProvider = ({ children }) => {
     socket.on("user-stop-typing",    onUserStopTyping);
     socket.on("new-notification",    onNewNotification);
     socket.on("notification-read",   onNotificationRead);
+    socket.on(GROUP_EVENTS.CREATED,               onGroupCreated);
+    socket.on(GROUP_EVENTS.INFO_UPDATED,          onGroupInfoUpdated);
+    socket.on(GROUP_EVENTS.MEMBER_ADDED,          onGroupMemberAdded);
+    socket.on(GROUP_EVENTS.MEMBER_REMOVED,        onGroupMemberRemoved);
+    socket.on(GROUP_EVENTS.MEMBER_LEFT,           onGroupMemberLeft);
+    socket.on(GROUP_EVENTS.ADMIN_PROMOTED,        onGroupAdminPromoted);
+    socket.on(GROUP_EVENTS.ADMIN_DEMOTED,         onGroupAdminDemoted);
+    socket.on(GROUP_EVENTS.RESTRICTION_TOGGLED,   onGroupRestrictionToggled);
+    socket.on(GROUP_EVENTS.OWNERSHIP_TRANSFERRED, onGroupOwnershipTransferred);
+    socket.on(GROUP_EVENTS.DELETED,               onGroupDeleted);
 
     return () => {
       socket.off("new-message",         onNewMessage);
@@ -376,8 +659,18 @@ export const ChatProvider = ({ children }) => {
       socket.off("user-stop-typing",    onUserStopTyping);
       socket.off("new-notification",    onNewNotification);
       socket.off("notification-read",   onNotificationRead);
+      socket.off(GROUP_EVENTS.CREATED,               onGroupCreated);
+      socket.off(GROUP_EVENTS.INFO_UPDATED,          onGroupInfoUpdated);
+      socket.off(GROUP_EVENTS.MEMBER_ADDED,          onGroupMemberAdded);
+      socket.off(GROUP_EVENTS.MEMBER_REMOVED,        onGroupMemberRemoved);
+      socket.off(GROUP_EVENTS.MEMBER_LEFT,           onGroupMemberLeft);
+      socket.off(GROUP_EVENTS.ADMIN_PROMOTED,        onGroupAdminPromoted);
+      socket.off(GROUP_EVENTS.ADMIN_DEMOTED,         onGroupAdminDemoted);
+      socket.off(GROUP_EVENTS.RESTRICTION_TOGGLED,   onGroupRestrictionToggled);
+      socket.off(GROUP_EVENTS.OWNERSHIP_TRANSFERRED, onGroupOwnershipTransferred);
+      socket.off(GROUP_EVENTS.DELETED,               onGroupDeleted);
     };
-  }, [socket, currentUser]);
+  }, [socket, currentUser,loadConversations]);
 
   const value = {
     conversations, conversationsLoading, loadConversations,
@@ -390,7 +683,7 @@ export const ChatProvider = ({ children }) => {
     notifications, notificationsLoading, notifHasMore,
     unreadNotificationCount, loadNotifications, readNotification,
     loadMoreNotifications: () => notifHasMore && loadNotifications(notifNextCursor),
-    typingUsers, emitTyping, emitStopTyping,
+    typingUsers, emitTyping, emitStopTyping,GROUP_EVENTS,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

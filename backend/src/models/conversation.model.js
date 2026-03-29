@@ -1,5 +1,6 @@
 import mongoose from "mongoose"
 
+
 const conversationSchema = new mongoose.Schema({
   type: {
     type: String,
@@ -19,6 +20,22 @@ const conversationSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
     default: null
+  },
+  admins: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User"
+  }],
+  groupIcon: {
+    type: String,
+    default: ""
+  },
+  groupIconPublicId: {
+    type: String,
+    default: ""
+  },
+  isRestricted: {
+    type: Boolean,
+    default: false
   },
   lastMessage: {
     type: mongoose.Schema.Types.ObjectId,

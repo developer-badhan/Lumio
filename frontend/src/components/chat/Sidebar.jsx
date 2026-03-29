@@ -1,11 +1,13 @@
-import React, { useState, useContext } from 'react';
-import { Search, Plus, MessageSquare, Users } from 'lucide-react';
+import React, { useState, useContext, useRef, useEffect } from 'react';
+import { Search, Plus, MessageSquare, Users, UsersRound } from 'lucide-react';
 import { useChat } from '../../hooks/useChat';
 import { useAuth } from '../../context/AuthContext';
 import { SocketContext } from '../../context/SocketContext';
 import Avatar from '../ui/Avatar';
 import UserList from './UserList';
 import NewConversationModal from './NewConversationModal';
+import CreateGroupModal from '../group/CreateGroupModal';
+
 
 /**
  * Sidebar
@@ -19,6 +21,7 @@ import NewConversationModal from './NewConversationModal';
  *   • All existing logic (tabs, search, unread badges, online badges) is unchanged.
  */
 
+
 const TABS = [
   { key: 'chats',  label: 'Chats',  Icon: MessageSquare },
   { key: 'people', label: 'People', Icon: Users },
@@ -29,41 +32,82 @@ const Sidebar = () => {
   const { user: currentUser } = useAuth();
   const { onlineUsers } = useContext(SocketContext);
 
-  const [activeTab,        setActiveTab]        = useState('chats');
-  const [search,           setSearch]           = useState('');
-  // FIX: was declared but never set to true — Plus button had no onClick
-  const [showNewConvModal, setShowNewConvModal] = useState(false);
+  const [activeTab,            setActiveTab]            = useState('chats');
+  const [search,               setSearch]               = useState('');
+  const [showNewConvModal,     setShowNewConvModal]     = useState(false);
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  // Dropdown for the + button: shows "New Chat" vs "New Group"
+  const [showPlusMenu,         setShowPlusMenu]         = useState(false);
+
+  const plusMenuRef = useRef(null);
+
+  // Close plus dropdown on outside click
+  useEffect(() => {
+    if (!showPlusMenu) return;
+    const handler = (e) => {
+      if (plusMenuRef.current && !plusMenuRef.current.contains(e.target)) {
+        setShowPlusMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showPlusMenu]);
 
   const handleUserSelect = () => setActiveTab('chats');
 
-  const filteredConversations = conversations.filter(c =>
-    c.groupName?.toLowerCase().includes(search.toLowerCase()) ||
-    c.participants?.some(p => p.name?.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filteredConversations = conversations.filter(c => {
+    const isGroup = c.type === 'group';
+    if (isGroup) return c.groupName?.toLowerCase().includes(search.toLowerCase());
+    return c.participants?.some(p => p.name?.toLowerCase().includes(search.toLowerCase()));
+  });
 
   return (
     <>
       <div className="w-80 h-full bg-black border-r border-gray-800 flex flex-col">
 
-        {/* Header */}
+        {/* ── Header ── */}
         <div className="p-4 flex items-center justify-between shrink-0">
           <h1 className="text-xl font-bold text-white">
             {activeTab === 'chats' ? 'Chats' : 'People'}
           </h1>
+
           {activeTab === 'chats' && (
-            // FIX: added onClick={() => setShowNewConvModal(true)}
-            // Previously this button rendered but did nothing on click.
-            <button
-              onClick={() => setShowNewConvModal(true)}
-              className="p-2 bg-purple-500/10 text-purple-500 rounded-full hover:bg-purple-500/20 transition-colors"
-              title="New conversation"
-            >
-              <Plus size={20} />
-            </button>
+            <div className="relative" ref={plusMenuRef}>
+              <button
+                onClick={() => setShowPlusMenu(p => !p)}
+                className="p-2 bg-purple-500/10 text-purple-500 rounded-full hover:bg-purple-500/20 transition-colors"
+                title="New conversation"
+              >
+                <Plus size={20} />
+              </button>
+
+              {/* Dropdown menu */}
+              {showPlusMenu && (
+                <div className="absolute right-0 top-full mt-2 z-50 w-44
+                  bg-[#1c1830] border border-purple-500/20 rounded-xl shadow-xl overflow-hidden">
+                  <button
+                    onClick={() => { setShowNewConvModal(true); setShowPlusMenu(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm
+                      text-gray-300 hover:bg-white/5 transition-colors"
+                  >
+                    <MessageSquare size={15} className="text-purple-400" />
+                    New Chat
+                  </button>
+                  <button
+                    onClick={() => { setShowCreateGroupModal(true); setShowPlusMenu(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm
+                      text-gray-300 hover:bg-white/5 transition-colors"
+                  >
+                    <UsersRound size={15} className="text-purple-400" />
+                    New Group
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
-        {/* Tab Switcher */}
+        {/* ── Tab Switcher ── */}
         <div className="px-4 pb-3 shrink-0">
           <div className="flex bg-[#111] rounded-xl p-1 gap-1">
             {TABS.map(({ key, label, Icon }) => (
@@ -104,7 +148,7 @@ const Sidebar = () => {
           </div>
         </div>
 
-        {/* CHATS TAB */}
+        {/* ── CHATS TAB ── */}
         {activeTab === 'chats' && (
           <>
             {/* Search */}
@@ -135,14 +179,13 @@ const Sidebar = () => {
                   <MessageSquare size={32} className="text-gray-700 mx-auto mb-3" />
                   <p className="text-gray-600 text-sm">No conversations yet</p>
                   <p className="text-gray-700 text-xs mt-1">
-                    Press <span className="text-purple-500">+</span> or go to{' '}
-                    <span className="text-purple-500">People</span> to start chatting
+                    Press <span className="text-purple-500">+</span> to start chatting
                   </p>
                 </div>
               ) : (
                 filteredConversations.map(conv => {
-                  const isGroup   = conv.isGroup || conv.type === 'group';
-                  const other     = isGroup
+                  const isGroup = conv.type === 'group';
+                  const other   = isGroup
                     ? null
                     : conv.participants?.find(p => p._id !== currentUser?._id);
 
@@ -155,6 +198,15 @@ const Sidebar = () => {
                     ? conv.unreadCounts.get(currentUser?._id) || 0
                     : conv.unreadCounts?.[currentUser?._id] || 0;
 
+                  // Last message preview — for groups, prefix sender name
+                  const lastMsgPreview = conv.lastMessage?.isDeleted
+                    ? '🗑 Message deleted'
+                    : conv.lastMessage?.messageType !== 'text'
+                      ? `📎 ${conv.lastMessage?.messageType}`
+                      : isGroup && conv.lastMessage?.sender?.name
+                        ? `${conv.lastMessage.sender.name}: ${conv.lastMessage.content}`
+                        : conv.lastMessage?.content || 'No messages yet';
+
                   return (
                     <div
                       key={conv._id}
@@ -166,30 +218,46 @@ const Sidebar = () => {
                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-purple-500 rounded-r" />
                       )}
 
-                      <Avatar
-                        src={!isGroup ? other?.profilePic || other?.avatar || null : null}
-                        name={displayName}
-                        alt={displayName}
-                        size="md"
-                        online={!isGroup ? isOtherOnline : null}
-                      />
+                      {/* Group icon or user avatar */}
+                      {isGroup
+                        ? conv.groupIcon
+                          ? (
+                            <div className="relative shrink-0">
+                              <img
+                                src={conv.groupIcon}
+                                alt={displayName}
+                                className="w-10 h-10 rounded-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-purple-600/20 flex items-center
+                              justify-center shrink-0">
+                              <UsersRound size={18} className="text-purple-400/70" />
+                            </div>
+                          )
+                        : (
+                          <Avatar
+                            src={other?.profilePic || other?.avatar || null}
+                            name={displayName}
+                            alt={displayName}
+                            size="md"
+                            online={isOtherOnline}
+                          />
+                        )
+                      }
 
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-baseline">
-                          <h3 className="text-sm font-semibold text-white truncate">{displayName}</h3>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <h3 className="text-sm font-semibold text-white truncate">{displayName}</h3>
+                          </div>
                           <span className="text-[10px] text-gray-500 shrink-0 ml-1">
                             {conv.lastMessage
                               ? new Date(conv.lastMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                               : ''}
                           </span>
                         </div>
-                        <p className="text-xs text-gray-500 truncate mt-0.5">
-                          {conv.lastMessage?.isDeleted
-                            ? '🗑 Message deleted'
-                            : conv.lastMessage?.messageType !== 'text'
-                              ? `📎 ${conv.lastMessage?.messageType}`
-                              : conv.lastMessage?.content || 'No messages yet'}
-                        </p>
+                        <p className="text-xs text-gray-500 truncate mt-0.5">{lastMsgPreview}</p>
                       </div>
 
                       {unread > 0 && (
@@ -205,17 +273,16 @@ const Sidebar = () => {
           </>
         )}
 
-        {/* PEOPLE TAB */}
+        {/* ── PEOPLE TAB ── */}
         {activeTab === 'people' && (
           <UserList onUserSelect={handleUserSelect} />
         )}
 
       </div>
 
-      {/* New Conversation Modal — rendered outside the sidebar div to avoid clipping */}
-      {showNewConvModal && (
-        <NewConversationModal onClose={() => setShowNewConvModal(false)} />
-      )}
+      {/* Modals */}
+      {showNewConvModal     && <NewConversationModal onClose={() => setShowNewConvModal(false)} />}
+      {showCreateGroupModal && <CreateGroupModal     onClose={() => setShowCreateGroupModal(false)} />}
     </>
   );
 };

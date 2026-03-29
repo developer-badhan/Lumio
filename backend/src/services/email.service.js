@@ -111,3 +111,25 @@ export const sendPasswordChangeNotificationEmail = async (email, name) => {
     html,
   });
 };
+
+// Group Promotion Notification
+export const sendGroupPromotionEmail = async (email, name, groupName) => {
+  const subject = `You are now an Admin of ${groupName} 👑`;
+  const html = `
+    <h2>Congratulations ${name}!</h2>
+    <p>You have been promoted to <strong>Admin</strong> in the group <strong>${groupName}</strong>.</p>
+    <p>You can now manage members and edit group settings.</p>
+  `;
+  return await sendEmail({ to: email, subject, html });
+};
+
+// Group Demotion Notification
+export const sendGroupDemotionEmail = async (email, name, groupName) => {
+  const subject = `Update regarding ${groupName}`;
+  const html = `
+    <h2>Hello ${name},</h2>
+    <p>Your admin privileges in the group <strong>${groupName}</strong> have been removed by another admin.</p>
+    <p>You are still a member of the group, but you can no longer manage settings or members.</p>
+  `;
+  return await sendEmail({ to: email, subject, html });
+};

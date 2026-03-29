@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from "react-
 import { AuthProvider, useAuth } from "./context/AuthContext.jsx";
 import { SocketProvider } from "./context/SocketContext.jsx";
 import { ChatProvider } from "./context/ChatContext.jsx";
+import { GroupProvider } from "./context/GroupContext.jsx";
 import { ToastProvider } from "./context/ToastContext.jsx";
 import { CallProvider } from "./context/CallContext.jsx"; 
 import CallModal from "./components/ui/CallModal.jsx";      
@@ -11,6 +12,7 @@ import ChangePassword from "./pages/ChangePassword.jsx";
 import Register from "./pages/Register.jsx";
 import VerifyOtp from "./pages/VerifyOtp.jsx";
 import Settings from "./pages/Settings.jsx";
+import JoinGroup from "./pages/JoinGroup.jsx";
 
 
 // Protected Layout 
@@ -26,10 +28,12 @@ const ProtectedLayout = () => {
   return (
     <SocketProvider>
       <ChatProvider>
-        <CallProvider>
-          <Outlet />
-          <CallModal />
-        </CallProvider>
+        <GroupProvider>
+          <CallProvider>
+            <Outlet />
+            <CallModal />
+          </CallProvider>
+        </GroupProvider>
       </ChatProvider>
     </SocketProvider>
   );
@@ -84,6 +88,7 @@ function App() {
             <Route element={<ProtectedLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/settings"  element={<Settings />} />
+              <Route path="/join-group" element={<JoinGroup />} />
             </Route>
 
             {/* ── Default: redirect root to dashboard (ProtectedLayout handles auth) ── */}
