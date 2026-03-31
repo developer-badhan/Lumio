@@ -23,3 +23,12 @@ export const updateProfile = ({ name, bio, profilePic }) => {
  */
 export const removeProfilePic = () =>
   api.patch("/auth/update-profile", { removePhoto: "true" });
+
+/**
+ * Permanently delete the current user's account and all associated data.
+ * Backend: DELETE /auth/delete-account
+ * On success the caller (AuthContext.deleteAccount) must also clear local
+ * state and redirect to /login.
+ */
+export const deleteAccount = () =>
+  api.delete("/auth/delete-account");

@@ -358,9 +358,25 @@ const NotificationsTab = () => {
 };
 
 // ─── Account Tab ──────────────────────────────────────────────────────────────
-
 const AccountTab = () => {
-  const [twoFactor, setTwoFactor] = useState(false);
+  const { deleteAccount } = useAuth();
+
+  const [twoFactor,    setTwoFactor]    = useState(false);
+  const [showConfirm,  setShowConfirm]  = useState(false);
+  const [deleting,     setDeleting]     = useState(false);
+  const [deleteError,  setDeleteError]  = useState(null);
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    setDeleteError(null);
+    const result = await deleteAccount();
+    // If deleteAccount returns an error (rare — it usually redirects on success)
+    if (result && !result.success) {
+      setDeleteError(result.error);
+      setDeleting(false);
+    }
+    // On success: AuthContext redirects to /login — no further action needed here
+  };
 
   return (
     <div>
@@ -377,7 +393,6 @@ const AccountTab = () => {
           desc="Add a PIN for extra protection"
           right={<Toggle enabled={twoFactor} onChange={setTwoFactor} />}
         />
-
         <SettingRow
           icon={<KeyRound size={17} className="text-blue-400" />}
           iconBg="bg-blue-500/15"
@@ -386,7 +401,6 @@ const AccountTab = () => {
           onClick={() => window.location.href = '/change-password'}
           right={<ChevronRight size={17} className="text-gray-600" />}
         />
-
         <SettingRow
           icon={<Shield size={17} className="text-emerald-400" />}
           iconBg="bg-emerald-500/15"
@@ -400,14 +414,74 @@ const AccountTab = () => {
         <p className="text-xs text-gray-600 mb-3 uppercase tracking-wider font-semibold">
           Danger Zone
         </p>
-        <SettingRow
-          icon={<Trash2 size={17} className="text-red-400" />}
-          iconBg="bg-red-500/10"
-          label="Delete Account"
-          desc="Permanently remove your account and all data"
-          danger
-          right={<ChevronRight size={17} className="text-red-500/40" />}
-        />
+
+        {/* ── Delete account row — idle state ── */}
+        {!showConfirm && (
+          <SettingRow
+            icon={<Trash2 size={17} className="text-red-400" />}
+            iconBg="bg-red-500/10"
+            label="Delete Account"
+            desc="Permanently remove your account and all data"
+            danger
+            onClick={() => setShowConfirm(true)}
+            right={<ChevronRight size={17} className="text-red-500/40" />}
+          />
+        )}
+
+        {/* ── Delete account — confirmation state ── */}
+        {showConfirm && (
+          <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-5">
+
+            {/* Error banner */}
+            {deleteError && (
+              <div className="flex items-center gap-2 mb-4 px-3 py-2.5 bg-red-500/10
+                border border-red-500/20 rounded-xl">
+                <AlertCircle size={13} className="text-red-400 shrink-0" />
+                <p className="text-xs text-red-400">{deleteError}</p>
+              </div>
+            )}
+
+            <div className="flex items-start gap-3 mb-4">
+              <div className="p-2 bg-red-500/10 rounded-xl shrink-0 mt-0.5">
+                <Trash2 size={15} className="text-red-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-red-400 mb-1">
+                  Delete your account?
+                </p>
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  This permanently deletes your account, all messages, conversations,
+                  and media. This action <span className="text-red-400/80 font-semibold">cannot be undone</span>.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+                className="flex-1 py-2.5 rounded-xl bg-red-500/20 hover:bg-red-500/35
+                  border border-red-500/30 text-red-400 text-sm font-bold
+                  transition-colors disabled:opacity-50
+                  flex items-center justify-center gap-1.5"
+              >
+                {deleting
+                  ? <><Loader2 size={13} className="animate-spin" /> Deleting…</>
+                  : <><Trash2 size={13} /> Yes, delete my account</>
+                }
+              </button>
+              <button
+                onClick={() => { setShowConfirm(false); setDeleteError(null); }}
+                disabled={deleting}
+                className="flex-1 py-2.5 rounded-xl border border-gray-700
+                  text-gray-400 hover:text-white hover:border-gray-600
+                  text-sm font-semibold transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/axios';
-import { updateProfile as updateProfileApi } from '../services/profile';
+import { 
+  updateProfile as updateProfileApi, 
+  deleteAccount as deleteAccountApi 
+} from '../services/profile';
 
 const AuthContext = createContext();
 
@@ -85,6 +88,24 @@ export const AuthProvider = ({ children }) => {
   };
 
 
+  // Calls DELETE /auth/delete-account, then wipes local state and redirects.
+  // Returns { success, error } so Settings.jsx can show feedback before redirecting.
+  const deleteAccount = async () => {
+    try {
+      await deleteAccountApi();
+    } catch (err) {
+      const message = err.response?.data?.message || 'Failed to delete account.';
+      return { success: false, error: message };
+    }
+    // Wipe everything regardless of API result
+    localStorage.removeItem('token');
+    localStorage.removeItem('verifyToken');
+    setUser(null);
+    window.location.href = '/login';
+    return { success: true };
+  };
+
+
   return (
     // updateUser is now exposed alongside the existing values
     <AuthContext.Provider value={{ 
@@ -95,6 +116,7 @@ export const AuthProvider = ({ children }) => {
         setPreVerifyToken, 
         updateUser,
         updateProfile,
+        deleteAccount
        }}>
       {children}
     </AuthContext.Provider>
