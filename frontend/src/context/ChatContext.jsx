@@ -34,10 +34,8 @@ const isUserInList = (list = [], userId) =>
   list.some(m => (m._id?.toString() ?? m.toString()) === userId);
 
 export const ChatProvider = ({ children }) => {
-  const { socket }                        = useSocket();
-  // FIX: destructure updateUser — needed in blockUser/unblockUser deps
-  const { user: currentUser, updateUser } = useAuth();
-
+  const { socket }                                      = useSocket();
+  const { user: currentUser, updateUser }               = useAuth();
   const [conversations,        setConversations]        = useState([]);
   const [conversationsLoading, setConversationsLoading] = useState(false);
   const [activeConversation,   setActiveConversation]   = useState(null);
@@ -672,6 +670,13 @@ export const ChatProvider = ({ children }) => {
     };
   }, [socket, currentUser,loadConversations]);
 
+  // Determine if the active conversation is a private chat with "Lumio AI" and extract the AI user ID if so.
+  const _aiParticipant   = activeConversation?.type === 'private'
+    ? activeConversation?.participants?.find(p => p.name === 'Lumio AI')
+    : null;
+  const isAIConversation = !!_aiParticipant;  
+  const aiUserId         = _aiParticipant?._id ?? null; 
+  
   const value = {
     conversations, conversationsLoading, loadConversations,
     openPrivateConversation, createGroup, removeConversation,
@@ -683,7 +688,7 @@ export const ChatProvider = ({ children }) => {
     notifications, notificationsLoading, notifHasMore,
     unreadNotificationCount, loadNotifications, readNotification,
     loadMoreNotifications: () => notifHasMore && loadNotifications(notifNextCursor),
-    typingUsers, emitTyping, emitStopTyping,GROUP_EVENTS,
+    typingUsers, emitTyping, emitStopTyping,GROUP_EVENTS,isAIConversation, aiUserId
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

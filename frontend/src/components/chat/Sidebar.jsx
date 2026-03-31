@@ -1,5 +1,5 @@
 import React, { useState, useContext, useRef, useEffect } from 'react';
-import { Search, Plus, MessageSquare, Users, UsersRound } from 'lucide-react';
+import { Search, Plus, MessageSquare, Users, UsersRound, Sparkles } from 'lucide-react';
 import { useChat } from '../../hooks/useChat';
 import { useAuth } from '../../context/AuthContext';
 import { SocketContext } from '../../context/SocketContext';
@@ -19,6 +19,17 @@ import CreateGroupModal from '../group/CreateGroupModal';
  *   • <Plus> button now toggles the modal open.
  *   • <NewConversationModal> is rendered when showNewConvModal is true.
  *   • All existing logic (tabs, search, unread badges, online badges) is unchanged.
+ * AI integration additions:
+ *   • Helper `isAIConv()` detects the Lumio AI private conversation by
+ *     checking if any non-self participant is named "Lumio AI".
+ *   • AI conversation is always sorted to the top of the list.
+ *   • AI conversation item gets:
+ *       - Teal sparkle avatar (replaces the user Avatar component)
+ *       - Always-online green dot
+ *       - "AI" pill badge next to the name
+ *       - "AI Assistant" preview label when no messages exist yet
+ *
+ * All original behaviour (tabs, search, unread badges, online counts) preserved.
  */
 
 
@@ -26,6 +37,14 @@ const TABS = [
   { key: 'chats',  label: 'Chats',  Icon: MessageSquare },
   { key: 'people', label: 'People', Icon: Users },
 ];
+
+// Detects whether a conversation is the Lumio AI private chat.
+// Checks that the conversation is private and has a participant named "Lumio AI"
+// who is not the current user.
+const isAIConv = (conv, currentUserId) =>
+  conv.type !== 'group' &&
+  conv.participants?.some(p => p._id !== currentUserId && p.name === 'Lumio AI');
+
 
 const Sidebar = () => {
   const { conversations, selectConversation, activeConversation, conversationsLoading } = useChat();
@@ -36,12 +55,10 @@ const Sidebar = () => {
   const [search,               setSearch]               = useState('');
   const [showNewConvModal,     setShowNewConvModal]     = useState(false);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
-  // Dropdown for the + button: shows "New Chat" vs "New Group"
   const [showPlusMenu,         setShowPlusMenu]         = useState(false);
 
   const plusMenuRef = useRef(null);
 
-  // Close plus dropdown on outside click
   useEffect(() => {
     if (!showPlusMenu) return;
     const handler = (e) => {
@@ -55,11 +72,19 @@ const Sidebar = () => {
 
   const handleUserSelect = () => setActiveTab('chats');
 
+  // ── Filtering + sort (AI always first) ────────────────────────────────────
   const filteredConversations = conversations.filter(c => {
     const isGroup = c.type === 'group';
     if (isGroup) return c.groupName?.toLowerCase().includes(search.toLowerCase());
     return c.participants?.some(p => p.name?.toLowerCase().includes(search.toLowerCase()));
   });
+
+  // Pin AI conversation to the top of the list
+  const sortedConversations = (() => {
+    const ai   = filteredConversations.find(c => isAIConv(c, currentUser?._id));
+    const rest = filteredConversations.filter(c => !isAIConv(c, currentUser?._id));
+    return ai ? [ai, ...rest] : rest;
+  })();
 
   return (
     <>
@@ -81,7 +106,6 @@ const Sidebar = () => {
                 <Plus size={20} />
               </button>
 
-              {/* Dropdown menu */}
               {showPlusMenu && (
                 <div className="absolute right-0 top-full mt-2 z-50 w-44
                   bg-[#1c1830] border border-purple-500/20 rounded-xl shadow-xl overflow-hidden">
@@ -122,7 +146,6 @@ const Sidebar = () => {
                 <Icon size={15} />
                 {label}
 
-                {/* Unread count badge on Chats tab */}
                 {key === 'chats' && (() => {
                   const totalUnread = conversations.reduce((sum, c) => {
                     const val = c.unreadCounts instanceof Map
@@ -137,7 +160,6 @@ const Sidebar = () => {
                   ) : null;
                 })()}
 
-                {/* Online count badge on People tab */}
                 {key === 'people' && onlineUsers.length > 0 && (
                   <span className="bg-emerald-500/20 text-emerald-400 text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-4 text-center leading-none">
                     {onlineUsers.length}
@@ -151,7 +173,6 @@ const Sidebar = () => {
         {/* ── CHATS TAB ── */}
         {activeTab === 'chats' && (
           <>
-            {/* Search */}
             <div className="px-4 pb-4 shrink-0">
               <div className="relative group">
                 <Search
@@ -168,13 +189,12 @@ const Sidebar = () => {
               </div>
             </div>
 
-            {/* Conversation list */}
             <div className="flex-1 overflow-y-auto custom-scrollbar">
               {conversationsLoading ? (
                 <div className="flex justify-center p-8">
                   <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
                 </div>
-              ) : filteredConversations.length === 0 ? (
+              ) : sortedConversations.length === 0 ? (
                 <div className="text-center py-12 px-6">
                   <MessageSquare size={32} className="text-gray-700 mx-auto mb-3" />
                   <p className="text-gray-600 text-sm">No conversations yet</p>
@@ -183,29 +203,34 @@ const Sidebar = () => {
                   </p>
                 </div>
               ) : (
-                filteredConversations.map(conv => {
+                sortedConversations.map(conv => {
                   const isGroup = conv.type === 'group';
                   const other   = isGroup
                     ? null
                     : conv.participants?.find(p => p._id !== currentUser?._id);
 
-                  const displayName   = isGroup ? conv.groupName : (other?.name || 'Unknown');
-                  const isActive      = activeConversation?._id === conv._id;
-                  const isOtherOnline = !isGroup && other?._id
-                    ? onlineUsers.includes(other._id)
-                    : false;
+                  const isAI        = isAIConv(conv, currentUser?._id);
+                  const displayName = isGroup ? conv.groupName : (other?.name || 'Unknown');
+                  const isActive    = activeConversation?._id === conv._id;
+
+                  // AI is always shown as online
+                  const isOtherOnline = isAI
+                    ? true
+                    : (!isGroup && other?._id ? onlineUsers.includes(other._id) : false);
+
                   const unread = conv.unreadCounts instanceof Map
                     ? conv.unreadCounts.get(currentUser?._id) || 0
                     : conv.unreadCounts?.[currentUser?._id] || 0;
 
-                  // Last message preview — for groups, prefix sender name
+                  // Last message preview
                   const lastMsgPreview = conv.lastMessage?.isDeleted
                     ? '🗑 Message deleted'
                     : conv.lastMessage?.messageType !== 'text'
                       ? `📎 ${conv.lastMessage?.messageType}`
                       : isGroup && conv.lastMessage?.sender?.name
                         ? `${conv.lastMessage.sender.name}: ${conv.lastMessage.content}`
-                        : conv.lastMessage?.content || 'No messages yet';
+                        : conv.lastMessage?.content
+                        ?? (isAI ? 'AI Assistant — ask me anything' : 'No messages yet');
 
                   return (
                     <div
@@ -218,38 +243,47 @@ const Sidebar = () => {
                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-purple-500 rounded-r" />
                       )}
 
-                      {/* Group icon or user avatar */}
+                      {/* ── Avatar ── */}
                       {isGroup
+                        // Group icon
                         ? conv.groupIcon
-                          ? (
-                            <div className="relative shrink-0">
-                              <img
-                                src={conv.groupIcon}
-                                alt={displayName}
-                                className="w-10 h-10 rounded-full object-cover"
-                              />
+                          ? <div className="relative shrink-0">
+                              <img src={conv.groupIcon} alt={displayName} className="w-10 h-10 rounded-full object-cover" />
                             </div>
-                          ) : (
-                            <div className="w-10 h-10 rounded-full bg-purple-600/20 flex items-center
-                              justify-center shrink-0">
+                          : <div className="w-10 h-10 rounded-full bg-purple-600/20 flex items-center justify-center shrink-0">
                               <UsersRound size={18} className="text-purple-400/70" />
                             </div>
-                          )
-                        : (
-                          <Avatar
-                            src={other?.profilePic || other?.avatar || null}
-                            name={displayName}
-                            alt={displayName}
-                            size="md"
-                            online={isOtherOnline}
-                          />
-                        )
+
+                        // Private: AI gets teal sparkle avatar, humans get Avatar component
+                        : isAI
+                          ? <div className="relative shrink-0">
+                              <div className="w-10 h-10 rounded-full bg-teal-600/20 border border-teal-500/30 flex items-center justify-center">
+                                <Sparkles size={18} className="text-teal-400" />
+                              </div>
+                              {/* Always-online indicator */}
+                              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-black" />
+                            </div>
+                          : <Avatar
+                              src={other?.profilePic || other?.avatar || null}
+                              name={displayName}
+                              alt={displayName}
+                              size="md"
+                              online={isOtherOnline}
+                            />
                       }
 
+                      {/* ── Name + preview ── */}
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-baseline">
                           <div className="flex items-center gap-1.5 min-w-0">
                             <h3 className="text-sm font-semibold text-white truncate">{displayName}</h3>
+                            {/* AI badge */}
+                            {isAI && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full
+                                bg-teal-500/15 text-teal-400 border border-teal-500/20 shrink-0">
+                                AI
+                              </span>
+                            )}
                           </div>
                           <span className="text-[10px] text-gray-500 shrink-0 ml-1">
                             {conv.lastMessage
@@ -257,9 +291,12 @@ const Sidebar = () => {
                               : ''}
                           </span>
                         </div>
-                        <p className="text-xs text-gray-500 truncate mt-0.5">{lastMsgPreview}</p>
+                        <p className={`text-xs truncate mt-0.5 ${isAI && !conv.lastMessage ? 'text-teal-400/50 italic' : 'text-gray-500'}`}>
+                          {lastMsgPreview}
+                        </p>
                       </div>
 
+                      {/* Unread badge */}
                       {unread > 0 && (
                         <span className="bg-purple-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-4 text-center shrink-0">
                           {unread > 99 ? '99+' : unread}

@@ -16,30 +16,39 @@ import MentionSuggestions from '../group/MentionSuggestions';
  *   • Shows a reply bar above the textarea when replyingTo is set.
  *   • Passes replyingTo._id to sendMessage as the third argument (replyToId).
  *   • Reply bar is dismissed by the X button or after a successful send.
+ *
+ * AI integration additions:
+ *   • Reads `isAIConversation` from ChatContext (via useChat).
+ *   • When talking to the AI:
+ *       - Placeholder becomes "Ask Lumio AI anything…"
+ *       - Paperclip (file attach) button is hidden — AI responds to text only
+ *       - Mic / voice recorder button is hidden — AI responds to text only
+ *       - Send button is always shown (never switches to mic icon)
+ *   • All group @mention logic unchanged — @Lumio works via existing MentionSuggestions.
+ *   • File state is cleared when switching conversations (prevents stale file in AI chat).
+ *
+ * All original behaviour preserved for human private chats and group chats.
  */
+
 
 // ── Mention detection helpers ──────────────────────────────────────────────────
-
-/**
- * Returns { query, startIndex } if there is an active @mention being typed
- * at or before cursorPos, or null if not in an @mention.
- */
 const detectMentionTrigger = (value, cursorPos) => {
   const before = value.slice(0, cursorPos);
-  // Match @ followed by word chars / dots, right up to cursor (no space after @)
-  const match = before.match(/@([\w.]*)$/);
+  const match  = before.match(/@([\w.]*)$/);
   if (!match) return null;
   return {
     query:      match[1],
-    startIndex: before.length - match[0].length,  // position of the @
+    startIndex: before.length - match[0].length,
   };
 };
+
 
 const MessageInput = () => {
   const {
     sendMessage, activeConversation,
     emitTyping, emitStopTyping,
     replyingTo, setReplyingTo,
+    isAIConversation, // ← AI addition
   } = useChat();
 
   const { isGroup, canSend, isRestricted, isAdmin } = useGroup();
@@ -50,9 +59,7 @@ const MessageInput = () => {
   const [isSending,       setIsSending]       = useState(false);
   const [voiceError,      setVoiceError]      = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-
-  // ── Mention state ──────────────────────────────────────────────────────────
-  const [mentionTrigger, setMentionTrigger] = useState(null); // { query, startIndex } | null
+  const [mentionTrigger,  setMentionTrigger]  = useState(null);
 
   const fileInputRef     = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -64,10 +71,11 @@ const MessageInput = () => {
     if (replyingTo) textareaRef.current?.focus();
   }, [replyingTo]);
 
-  // Clear mentions + reply state when conversation changes
+  // Clear text, file, and mention state when switching conversations
   useEffect(() => {
     setMentionTrigger(null);
     setText('');
+    setFile(null); // important: prevents a stale file persisting into AI chat
   }, [activeConversation?._id]);
 
   // Close emoji picker on outside click
@@ -124,13 +132,11 @@ const MessageInput = () => {
     const cursorPos = e.target.selectionStart ?? val.length;
     setText(val);
 
-    // Mention detection (only in group conversations)
     if (isGroup) {
       const trigger = detectMentionTrigger(val, cursorPos);
       setMentionTrigger(trigger);
     }
 
-    // Typing indicator
     if (activeConversation?._id) {
       emitTyping(activeConversation._id);
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -140,7 +146,6 @@ const MessageInput = () => {
     }
   };
 
-  // Recheck mention on cursor position change (arrow keys, click)
   const onCursorChange = () => {
     if (!isGroup || !textareaRef.current) return;
     const cursorPos = textareaRef.current.selectionStart ?? 0;
@@ -161,10 +166,9 @@ const MessageInput = () => {
     setText(newText);
     setMentionTrigger(null);
 
-    // Restore focus + move cursor after the inserted handle
     setTimeout(() => {
       if (textareaRef.current) {
-        const newCursor = startIndex + handle.length + 2; // @ + handle + space
+        const newCursor = startIndex + handle.length + 2;
         textareaRef.current.focus();
         textareaRef.current.setSelectionRange(newCursor, newCursor);
       }
@@ -199,7 +203,7 @@ const MessageInput = () => {
       : replyingTo.content
     : null;
 
-  // ── Recording mode ─────────────────────────────────────────────────────────
+  // ── Recording mode (only available in non-AI conversations) ───────────────
   if (isRecording) {
     return (
       <div className="bg-black border-t border-gray-800 w-full">
@@ -218,7 +222,6 @@ const MessageInput = () => {
   }
 
   // ── Restricted group lock banner ───────────────────────────────────────────
-  // Shown when the group is restricted AND the current user is not an admin.
   if (isGroup && isRestricted && !canSend) {
     return (
       <div className="bg-black border-t border-gray-800 px-6 py-4 flex items-center justify-center gap-2.5">
@@ -229,6 +232,15 @@ const MessageInput = () => {
       </div>
     );
   }
+
+  // ── Dynamic placeholder ────────────────────────────────────────────────────
+  const placeholder = isAIConversation
+    ? 'Ask Lumio AI anything…'
+    : replyingTo
+      ? `Replying to ${replyingTo.sender?.name ?? 'message'}…`
+      : isGroup
+        ? 'Type a message… (@ to mention)'
+        : 'Type a message…';
 
   return (
     <div className="bg-black border-t border-gray-800 relative">
@@ -253,39 +265,43 @@ const MessageInput = () => {
       )}
 
       {/* ── Attachment preview ── */}
-      <div className="relative">
-        <AttachmentPreview file={file} onClear={() => setFile(null)} />
-      </div>
+      {!isAIConversation && (
+        <div className="relative">
+          <AttachmentPreview file={file} onClear={() => setFile(null)} />
+        </div>
+      )}
 
       {/* ── Input row ── */}
       <div className="p-4">
         <div className="flex items-end gap-3 max-w-6xl mx-auto relative">
 
-          {/* Paperclip */}
-          <div className="flex gap-2 pb-1">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="p-2 text-gray-400 hover:text-purple-500 transition-colors"
-              title="Attach file"
-            >
-              <Paperclip size={22} />
-            </button>
-            <input
-              type="file"
-              ref={fileInputRef}
-              className="hidden"
-              accept="image/*,audio/*,video/*"
-              onChange={(e) => {
-                const f = e.target.files[0];
-                if (f) setFile(f);
-                e.target.value = '';
-              }}
-            />
-          </div>
+          {/* Paperclip — hidden in AI conversations */}
+          {!isAIConversation && (
+            <div className="flex gap-2 pb-1">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="p-2 text-gray-400 hover:text-purple-500 transition-colors"
+                title="Attach file"
+              >
+                <Paperclip size={22} />
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/*,audio/*,video/*"
+                onChange={(e) => {
+                  const f = e.target.files[0];
+                  if (f) setFile(f);
+                  e.target.value = '';
+                }}
+              />
+            </div>
+          )}
 
           {/* Textarea + emoji + @mention panel */}
           <div className="flex-1 relative">
-            {/* @mention suggestions — positioned above textarea */}
+            {/* @mention suggestions */}
             {isGroup && mentionTrigger && activeConversation?._id && (
               <MentionSuggestions
                 query={mentionTrigger.query}
@@ -300,19 +316,12 @@ const MessageInput = () => {
               <textarea
                 ref={textareaRef}
                 rows="1"
-                placeholder={
-                  replyingTo
-                    ? `Replying to ${replyingTo.sender?.name ?? 'message'}…`
-                    : isGroup
-                      ? 'Type a message… (@ to mention)'
-                      : 'Type a message…'
-                }
+                placeholder={placeholder}
                 value={text}
                 onChange={onTyping}
                 onClick={onCursorChange}
                 onKeyUp={onCursorChange}
                 onKeyDown={(e) => {
-                  // Don't send on Enter if mention suggestions are open (let them handle it)
                   if (e.key === 'Enter' && !e.shiftKey && !mentionTrigger) {
                     e.preventDefault();
                     handleSend();
@@ -344,14 +353,29 @@ const MessageInput = () => {
             </div>
           </div>
 
-          {/* Send / Mic */}
+          {/* Send / Mic
+              In AI conversations: always show Send (mic makes no sense for AI).
+              In human chats: switches to Mic when input is empty (original behaviour).
+          */}
           <button
-            onClick={text.trim() || file ? handleSend : () => setIsRecording(true)}
-            className="p-3 bg-gradient-to-r from-purple-500 to-purple-700 text-white
-              rounded-xl hover:opacity-90 transition-opacity shrink-0 pb-[14px]"
-            title={text.trim() || file ? 'Send' : 'Record voice message'}
+            onClick={
+              isAIConversation
+                ? handleSend                                              // AI: always send
+                : (text.trim() || file ? handleSend : () => setIsRecording(true)) // Human: send or mic
+            }
+            disabled={isAIConversation && !text.trim()} // AI: disable send when empty
+            className={`p-3 text-white rounded-xl shrink-0 pb-[14px] transition-opacity
+              ${isAIConversation && !text.trim()
+                ? 'bg-purple-500/30 cursor-not-allowed opacity-50'
+                : 'bg-gradient-to-r from-purple-500 to-purple-700 hover:opacity-90'
+              }`}
+            title={
+              isAIConversation
+                ? 'Send to Lumio AI'
+                : (text.trim() || file ? 'Send' : 'Record voice message')
+            }
           >
-            {text.trim() || file ? <Send size={20} /> : <Mic size={20} />}
+            {(text.trim() || file || isAIConversation) ? <Send size={20} /> : <Mic size={20} />}
           </button>
 
         </div>

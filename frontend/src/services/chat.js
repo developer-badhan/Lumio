@@ -65,5 +65,14 @@ export const markNotificationAsRead = (notificationId) =>
 
 
 // Block/Unblock 
-export const blockUser   = (userId) => api.post(`/auth/block/${userId}`);
-export const unblockUser = (userId) => api.delete(`/auth/unblock/${userId}`);
+export const blockUser   = (userId) => 
+  api.post(`/auth/block/${userId}`);
+
+export const unblockUser = (userId) => 
+  api.delete(`/auth/unblock/${userId}`);
+
+
+// AI => Used for explicit/manual AI triggers. Auto-trigger happens server-side via
+//sendMessage (private AI chat) or @Lumio mention detection (group chat).
+ export const sendAIMessage = (conversationId, message) =>
+  api.post(`/ai/respond/${conversationId}`, { message });

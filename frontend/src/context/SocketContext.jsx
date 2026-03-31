@@ -8,6 +8,7 @@ export const SocketContext = createContext();
 export const SocketProvider = ({ children }) => {
   const { user, loading } = useAuth();
   const [onlineUsers, setOnlineUsers] = useState([]);
+  const [aiTyping, setAiTyping] = useState(null);
 
   useEffect(() => {
     if (!loading && user) {
@@ -58,11 +59,20 @@ export const SocketProvider = ({ children }) => {
         setOnlineUsers(users);
       };
 
+      // NEW: Handlers for AI typing indicators
+      const handleAiTyping = ({ conversationId }) =>
+        setAiTyping(conversationId);
+      
+      const handleAiStopTyping = ({ conversationId }) =>
+        setAiTyping(prev => prev === conversationId ? null : prev);      
+
       // 2. Attach all listeners BEFORE connecting to ensure no events are missed
       socket.on('connect', handleConnect);
       socket.on('connect_error', handleConnectError);
       socket.on('user-status-change', handleStatusChange);
       socket.on('initial-online-users', handleInitialUsers);
+      socket.on('ai-typing',      handleAiTyping);
+      socket.on('ai-stop-typing', handleAiStopTyping);
 
       // 3. Finally, initiate connection
       socket.connect();
@@ -73,13 +83,15 @@ export const SocketProvider = ({ children }) => {
         socket.off('connect_error', handleConnectError);
         socket.off('user-status-change', handleStatusChange);
         socket.off('initial-online-users', handleInitialUsers);
+        socket.off('ai-typing',      handleAiTyping);
+        socket.off('ai-stop-typing', handleAiStopTyping);
         socket.disconnect();
       };
     }
   }, [user, loading]);
 
   return (
-    <SocketContext.Provider value={{ socket, onlineUsers }}>
+    <SocketContext.Provider value={{ socket, onlineUsers, aiTyping }}>
       {children}
     </SocketContext.Provider>
   );

@@ -54,7 +54,11 @@ const conversationSchema = new mongoose.Schema({
   clearedFor: [{
     user:      { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     clearedAt: { type: Date }
-  }]
+  }],
+  aiSummary: {
+    type: String,
+    default: ""
+  }
 
 }, { timestamps: true })
 

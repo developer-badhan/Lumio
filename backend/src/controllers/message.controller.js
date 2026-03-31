@@ -5,16 +5,126 @@ import Conversation from "../models/conversation.model.js"
 import Notification from "../models/notification.model.js"
 import { getIO, getOnlineUsers } from "../config/socket.js"
 import { uploadMedia, deleteMedia } from "../services/cloudinary.service.js"
+import { generateAIResponse } from "../services/ai.service.js"      
+import { buildPrompt } from "../utils/promptBuilder.js"              
+import { isPromptSafe } from "../utils/promptFilter.js"              
 
+
+// Media size limits (5MB for images, 15MB for audio, 50MB for video)
 const SIZE_LIMITS = { image: 5 * 1024 * 1024, audio: 15 * 1024 * 1024, video: 50 * 1024 * 1024 }
 const SIZE_LABELS = { image: "5MB", audio: "15MB", video: "50MB" }
 
+
+// Helper to clean up uploaded file on validation failure or errors
 const cleanupFile = (filePath) => {
   if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath)
 }
 
+// Fires an AI reply based on the user's message and conversation context
+const triggerAIReply = async ({ conversation, userMessage, conversationId }) => {
+  try {
+    // Safety check on the user's message before passing to AI
+    if (!userMessage || !isPromptSafe(userMessage)) return
 
-// Send Message Controller
+    const io = getIO()
+    const onlineUsers = getOnlineUsers()
+
+    const aiUser = await User.findOne({ email: process.env.AI_SYSTEM_EMAIL })
+    if (!aiUser) return
+
+    // Build context from recent messages
+    const recentMessages = await Message.find({ conversation: conversationId, isDeleted: false })
+      .sort({ createdAt: -1 })
+      .limit(15)
+      .populate("sender", "name")
+      .lean()
+
+    const formattedMessages = recentMessages.reverse().map(msg => ({
+      senderName: msg.sender?.name || "Unknown",
+      content: msg.content || ""
+    }))
+
+    const prompt = buildPrompt({
+      summary: conversation.aiSummary,
+      recentMessages: formattedMessages,
+      userMessage
+    })
+
+    // Signal typing to the room
+    io.to(conversationId).emit("ai-typing", { conversationId })
+
+    const aiText = await generateAIResponse(prompt)
+
+    io.to(conversationId).emit("ai-stop-typing", { conversationId })
+
+    if (!aiText || !aiText.trim()) return
+
+    const aiMessage = await Message.create({
+      conversation: conversationId,
+      sender: aiUser._id,
+      content: aiText,
+      readBy: [aiUser._id],
+      deliveredTo: [aiUser._id],
+    })
+
+    // Populate before emitting so frontend gets name + profilePic
+    const populatedAiMessage = await Message.findById(aiMessage._id)
+      .populate("sender", "name profilePic")
+
+    // Update unread counts for all human participants
+    const humanParticipants = conversation.participants.filter(
+      p => p.toString() !== aiUser._id.toString()
+    )
+
+    humanParticipants.forEach(uid => {
+      const id = uid.toString()
+      conversation.unreadCounts.set(id, (conversation.unreadCounts.get(id) || 0) + 1)
+    })
+
+    conversation.lastMessage = aiMessage._id
+    await conversation.save()
+
+    // Create notifications for human participants
+    if (humanParticipants.length > 0) {
+      await Notification.insertMany(
+        humanParticipants.map(uid => ({
+          recipient: uid.toString(),
+          sender: aiUser._id,
+          type: "message",
+          conversation: conversationId,
+          message: aiMessage._id
+        }))
+      )
+    }
+
+    // Emit new message + per-socket unread/notification events
+    io.to(conversationId).emit("new-message", populatedAiMessage)
+
+    for (const uid of humanParticipants) {
+      const id = uid.toString()
+      const userSockets = onlineUsers.get(id)
+      if (userSockets?.size > 0) {
+        userSockets.forEach(socketId => {
+          io.to(socketId).emit("unread-update", {
+            conversationId,
+            unreadCount: conversation.unreadCounts.get(id)
+          })
+          io.to(socketId).emit("new-notification", {
+            type: "message",
+            conversationId,
+            messageId: aiMessage._id
+          })
+        })
+      }
+    }
+
+  } catch (err) {
+    // AI errors are non-fatal — don't crash the original message flow
+    console.error("AI reply failed:", err.message)
+  }
+}
+
+// Message Sending Controller
 export const sendMessage = async (req, res, next) => {
   try {
     const { conversationId, content, replyTo } = req.body
@@ -41,20 +151,19 @@ export const sendMessage = async (req, res, next) => {
       return res.status(403).json({ success: false, message: "You are not part of this conversation" })
     }
 
-    // Restore conversation if sender had soft-deleted it
     conversation.deletedFor = conversation.deletedFor.filter(id => id.toString() !== senderId)
 
-    // Media handling
     let messageType = "text"
     let mediaData = null
 
     if (file) {
       const { mimetype, size } = file
 
-      const mediaCategory = mimetype.startsWith("image/") ? "image"
-                          : mimetype.startsWith("audio/") ? "audio"
-                          : mimetype.startsWith("video/") ? "video"
-                          : null
+      const mediaCategory =
+        mimetype.startsWith("image/") ? "image" :
+        mimetype.startsWith("audio/") ? "audio" :
+        mimetype.startsWith("video/") ? "video" :
+        null
 
       if (!mediaCategory) {
         cleanupFile(file.path)
@@ -71,44 +180,48 @@ export const sendMessage = async (req, res, next) => {
 
       mediaData = await uploadMedia(file, senderId)
 
-      messageType = mediaCategory === "image" ? "image"
-                  : mediaCategory === "video" ? "video"
-                  : (mediaData.duration && mediaData.duration <= 60) ? "voice" : "audio"
+      messageType =
+        mediaCategory === "image" ? "image" :
+        mediaCategory === "video" ? "video" :
+        (mediaData.duration && mediaData.duration <= 60) ? "voice" : "audio"
     }
 
     const message = await Message.create({
       conversation: conversationId,
-      sender:       senderId,
-      content:      messageType === "text" ? content.trim() : undefined,
+      sender: senderId,
+      content: messageType === "text" ? content.trim() : undefined,
       messageType,
-      media:        mediaData,
-      readBy:       [senderId],
-      deliveredTo:  [senderId],
-      replyTo:      replyTo || null,
+      media: mediaData,
+      readBy: [senderId],
+      deliveredTo: [senderId],
+      replyTo: replyTo || null,
     })
 
-    // otherParticipants is declared HERE — block check must come after this line
-    const otherParticipants = conversation.participants.filter(p => p.toString() !== senderId)
+    const otherParticipants = conversation.participants.filter(
+      p => p.toString() !== senderId
+    )
 
-    // BUG FIX: was placed BEFORE this declaration → ReferenceError crashed every send
-    // Block check: if any recipient has blocked the sender, reject silently
+    // Block check (unchanged)
     if (otherParticipants.length > 0) {
       const blockedBySomeone = await User.exists({
-        _id:          { $in: otherParticipants },
+        _id: { $in: otherParticipants },
         blockedUsers: senderId
       })
+
       if (blockedBySomeone) {
-        // Roll back the message we just created — don't leave orphaned docs
         await Message.findByIdAndDelete(message._id)
+
+        if (mediaData?.publicId) {
+          const resourceType = ["audio", "voice", "video"].includes(messageType) ? "video" : "image"
+          await deleteMedia(mediaData.publicId, resourceType)
+        }
+
         cleanupFile(file?.path)
-        return res.status(403).json({
-          success: false,
-          message: "You cannot send messages to this user"
-        })
+
+        return res.status(403).json({ success: false, message: "You cannot send messages to this user" })
       }
     }
 
-    // Increment unread count for every participant except sender
     otherParticipants.forEach(userId => {
       const id = userId.toString()
       conversation.unreadCounts.set(id, (conversation.unreadCounts.get(id) || 0) + 1)
@@ -120,11 +233,11 @@ export const sendMessage = async (req, res, next) => {
     if (otherParticipants.length > 0) {
       await Notification.insertMany(
         otherParticipants.map(userId => ({
-          recipient:    userId.toString(),
-          sender:       senderId,
-          type:         "message",
+          recipient: userId.toString(),
+          sender: senderId,
+          type: "message",
           conversation: conversationId,
-          message:      message._id
+          message: message._id
         }))
       )
     }
@@ -132,14 +245,13 @@ export const sendMessage = async (req, res, next) => {
     const populatedMessage = await Message.findById(message._id)
       .populate("sender", "name profilePic")
       .populate({
-        path:     "replyTo",
-        select:   "content messageType sender isDeleted",
+        path: "replyTo",
+        select: "content messageType sender isDeleted",
         populate: { path: "sender", select: "name" }
       })
 
-    // Socket events
     try {
-      const io          = getIO()
+      const io = getIO()
       const onlineUsers = getOnlineUsers()
 
       io.to(conversationId).emit("new-message", populatedMessage)
@@ -147,7 +259,7 @@ export const sendMessage = async (req, res, next) => {
       const deliveredToIds = []
 
       for (const userId of otherParticipants) {
-        const id          = userId.toString()
+        const id = userId.toString()
         const userSockets = onlineUsers.get(id)
 
         if (userSockets?.size > 0) {
@@ -159,9 +271,9 @@ export const sendMessage = async (req, res, next) => {
               unreadCount: conversation.unreadCounts.get(id)
             })
             io.to(socketId).emit("new-notification", {
-              type:          "message",
+              type: "message",
               conversationId,
-              messageId:     message._id
+              messageId: message._id
             })
           })
         }
@@ -175,7 +287,7 @@ export const sendMessage = async (req, res, next) => {
       }
 
       io.to(conversationId).emit("message-delivered", {
-        messageId:   message._id,
+        messageId: message._id,
         deliveredTo: [...message.deliveredTo, ...deliveredToIds]
       })
 
@@ -183,8 +295,44 @@ export const sendMessage = async (req, res, next) => {
       console.error("Socket emission failed:", socketError.message)
     }
 
-    return res.status(201).json({ success: true, message: populatedMessage })
+    // Case 1: Private chat with AI system user
+    //    — any text message sent to the AI user triggers a reply
+    if (messageType === "text" && conversation.type === "private") {
+      const aiSystemUser = await User.findOne({
+        email: process.env.AI_SYSTEM_EMAIL,
+        isSystem: true
+      }).lean()
 
+      const isAIConversation = aiSystemUser &&
+        otherParticipants.some(p => p.toString() === aiSystemUser._id.toString())
+
+      if (isAIConversation) {
+        // Fire-and-forget — don't await so the HTTP response already went out
+        triggerAIReply({
+          conversation,
+          userMessage: content.trim(),
+          conversationId
+        })
+      }
+    }
+
+    // Case 2: Group chat with @Lumio mention
+    //    — any text message containing "@Lumio" (case-insensitive) triggers a reply
+    if (messageType === "text" && conversation.type === "group") {
+      const mentionsAI = /(@lumio\b)/i.test(content)
+
+      if (mentionsAI) {
+        // Strip the @Lumio mention itself before passing as the prompt
+        const cleanedMessage = content.replace(/@lumio\b/gi, "").trim()
+
+        triggerAIReply({
+          conversation,
+          userMessage: cleanedMessage || content.trim(),
+          conversationId
+        })
+      }
+    }
+    return res.status(201).json({ success: true, message: populatedMessage })
   } catch (error) {
     cleanupFile(req.file?.path)
     next(error)

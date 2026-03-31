@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Check, CheckCheck, Loader2, Reply, Copy, Pencil,
   Trash2, MoreHorizontal, SmilePlus, X,
-  Check as CheckIcon
+  Check as CheckIcon, Sparkles,
 } from 'lucide-react';
 import AudioPlayer from './AudioPlayer';
 import { useChat } from '../../hooks/useChat';
@@ -12,6 +12,7 @@ import { useAuth } from '../../context/AuthContext';
 /**
  * ChatBubble
  * ──────────
+ *
  * BUG 7 FIXED — Optimistic media messages showed "unavailable" immediately
  *   Was: voice/audio/video/image optimistic messages have no media.url yet,
  *        so every media check fell through to "unavailable" text — this showed
@@ -27,6 +28,17 @@ import { useAuth } from '../../context/AuthContext';
  *   - isDeleted check
  *   - isEdited label
  *   - bg-gradient-to-r (not bg-linear-to-r)
+ * 
+ * AI integration additions:
+ *   • New `isAIMessage` prop — set by ChatWindow when the sender is the Lumio AI user.
+ *   • AI bubble uses a teal dark gradient instead of the grey "other" style.
+ *   • Private AI chat: "✦ Lumio AI" label shown above the bubble.
+ *   • Group AI chat:   sender name row uses teal colour + sparkle icon.
+ *   • Action bar for AI messages shows Reply only (no react picker, no dropdown).
+ *   • Timestamp colour is teal/muted for AI messages.
+ *   • Reactions row is still displayed (users can react to AI messages).
+ *
+ * All original behaviour preserved for human messages.
  */
 
 
@@ -36,14 +48,10 @@ const toId = (u) =>
   typeof u === 'string' ? u : u?._id?.toString?.() ?? String(u ?? '');
 
 // ── @mention renderer ──────────────────────────────────────────────────────────
-/**
- * Parses content for @mentions and returns an array of string / React element parts.
- * Self-mentions get a stronger purple highlight; others get a teal pill.
- */
 const renderWithMentions = (content, currentUser) => {
   if (!content) return null;
   const parts = content.split(/(@[\w.]+)/g);
-  if (parts.length === 1) return content; // fast path — no mentions
+  if (parts.length === 1) return content;
 
   const selfHandle    = currentUser?.name?.toLowerCase().replace(/\s+/g, '.');
   const selfHandleAlt = currentUser?.name?.toLowerCase().replace(/\s+/g, '');
@@ -52,16 +60,17 @@ const renderWithMentions = (content, currentUser) => {
     if (!part.startsWith('@')) return part;
     const handle = part.slice(1).toLowerCase();
     const isSelf =
-      selfHandle    && (handle === selfHandle    || handle === selfHandleAlt) ||
+      (selfHandle    && (handle === selfHandle    || handle === selfHandleAlt)) ||
       handle === currentUser?.name?.toLowerCase();
 
     return (
       <span
         key={i}
-        className={`rounded px-0.5 font-semibold
-          ${isSelf
+        className={`rounded px-0.5 font-semibold ${
+          isSelf
             ? 'bg-purple-500/40 text-purple-200 ring-1 ring-purple-500/40'
-            : 'bg-teal-500/15 text-teal-300'}`}
+            : 'bg-teal-500/15 text-teal-300'
+        }`}
       >
         {part}
       </span>
@@ -100,8 +109,8 @@ const ReactionsRow = ({ reactions, currentUserId, onReact }) => {
           <button
             key={r.emoji}
             onClick={() => onReact(r.emoji)}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs
-              border transition-all duration-150 hover:scale-110 active:scale-95 ${
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border
+              transition-all duration-150 hover:scale-110 active:scale-95 ${
               reacted
                 ? 'bg-purple-500/25 border-purple-500/50 text-white'
                 : 'bg-white/5 border-white/10 text-white/65 hover:bg-white/10'
@@ -260,7 +269,7 @@ const MediaSending = ({ type, isOwn }) => (
 // MAIN CHATBUBBLE
 // ══════════════════════════════════════════════════════════════════════════════
 
-const ChatBubble = ({ message, isOwn, isGroup = false }) => {
+const ChatBubble = ({ message, isOwn, isGroup = false, isAIMessage = false }) => {
   const { updateMessage, removeMessage, reactMessage, setReplyingTo } = useChat();
   const { user } = useAuth();
 
@@ -275,10 +284,10 @@ const ChatBubble = ({ message, isOwn, isGroup = false }) => {
   const isRead = message.readBy && message.readBy.length > 1;
 
   // ── Handlers ───────────────────────────────────────────────────────────────
-  const handleCopy    = useCallback(() => { navigator.clipboard.writeText(message.content ?? '').catch(() => {}); }, [message.content]);
-  const handleReply   = useCallback(() => { setReplyingTo(message); }, [message, setReplyingTo]);
-  const handleDelete  = useCallback(() => { removeMessage(message._id); }, [message._id, removeMessage]);
-  const handleReact   = useCallback(async (emoji) => {
+  const handleCopy   = useCallback(() => { navigator.clipboard.writeText(message.content ?? '').catch(() => {}); }, [message.content]);
+  const handleReply  = useCallback(() => { setReplyingTo(message); }, [message, setReplyingTo]);
+  const handleDelete = useCallback(() => { removeMessage(message._id); }, [message._id, removeMessage]);
+  const handleReact  = useCallback(async (emoji) => {
     if (message.isOptimistic) return;
     await reactMessage(message._id, emoji);
     setShowReactPicker(false);
@@ -295,7 +304,9 @@ const ChatBubble = ({ message, isOwn, isGroup = false }) => {
         <div className={`px-4 py-2 rounded-2xl max-w-[72%] ${
           isOwn
             ? 'bg-purple-700/30 rounded-br-sm'
-            : 'bg-[#1a1a1a]/80 border border-gray-800/60 rounded-bl-sm'
+            : isAIMessage
+              ? 'bg-teal-900/20 border border-teal-500/10 rounded-bl-sm'
+              : 'bg-[#1a1a1a]/80 border border-gray-800/60 rounded-bl-sm'
         }`}>
           <p className="text-[13px] italic text-white/30 select-none">🚫 This message was deleted</p>
           <p className={`text-[10px] mt-0.5 select-none ${isOwn ? 'text-right text-purple-200/30' : 'text-gray-700'}`}>
@@ -337,20 +348,34 @@ const ChatBubble = ({ message, isOwn, isGroup = false }) => {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* ── Bubble ── */}
+      {/* ── Bubble column ── */}
       <div className={`flex flex-col max-w-[72%] ${isOwn ? 'items-end' : 'items-start'}`}>
 
-        {/* Group: show sender name above bubble for incoming messages */}
+        {/* ── Sender label ── */}
+        {/* Private AI chat: always show "Lumio AI" label with sparkle */}
+        {!isGroup && isAIMessage && (
+          <p className="text-[11px] text-teal-400/80 font-medium mb-0.5 ml-1 flex items-center gap-1">
+            <Sparkles size={10} className="text-teal-400" />
+            Lumio AI
+          </p>
+        )}
+        {/* Group chat: show sender name — teal + sparkle for AI, purple for humans */}
         {isGroup && !isOwn && message.sender?.name && (
-          <p className="text-[11px] text-purple-400/80 font-medium mb-0.5 ml-1 truncate max-w-[200px]">
+          <p className={`text-[11px] font-medium mb-0.5 ml-1 truncate max-w-[200px] flex items-center gap-1 ${
+            isAIMessage ? 'text-teal-400/80' : 'text-purple-400/80'
+          }`}>
+            {isAIMessage && <Sparkles size={10} className="text-teal-400" />}
             {message.sender.name}
           </p>
         )}
 
+        {/* ── The bubble itself ── */}
         <div className={`px-4 py-2.5 rounded-2xl ${
           isOwn
             ? 'bg-gradient-to-br from-purple-600 to-purple-800 text-white rounded-br-sm'
-            : 'bg-[#1e1b2e] border border-purple-500/10 text-gray-100 rounded-bl-sm'
+            : isAIMessage
+              ? 'bg-gradient-to-br from-[#0c2424] to-[#091c1c] border border-teal-500/20 text-gray-100 rounded-bl-sm'
+              : 'bg-[#1e1b2e] border border-purple-500/10 text-gray-100 rounded-bl-sm'
         } ${message.isOptimistic ? 'opacity-70' : ''}`}>
 
           {/* Reply preview */}
@@ -359,7 +384,7 @@ const ChatBubble = ({ message, isOwn, isGroup = false }) => {
           {/* Media */}
           {renderMedia()}
 
-          {/* Text with @mention highlighting / inline edit */}
+          {/* Text content / inline edit */}
           {!isEditing && message.content && (
             <p className="text-[15px] leading-relaxed break-words whitespace-pre-wrap">
               {isGroup
@@ -380,8 +405,17 @@ const ChatBubble = ({ message, isOwn, isGroup = false }) => {
           {!isEditing && (
             <div className={`flex items-center gap-1 mt-1 select-none ${isOwn ? 'justify-end' : 'justify-start'}`}>
               {message.isEdited && <span className="text-[10px] italic opacity-40">edited</span>}
-              <span className={`text-[10px] ${isOwn ? 'text-purple-200/50' : 'text-gray-600'}`}>{time}</span>
-              {isOwn && (
+              <span className={`text-[10px] ${
+                isOwn
+                  ? 'text-purple-200/50'
+                  : isAIMessage
+                    ? 'text-teal-400/40'
+                    : 'text-gray-600'
+              }`}>
+                {time}
+              </span>
+              {/* Read receipts only for own human messages */}
+              {isOwn && !isAIMessage && (
                 message.isOptimistic
                   ? <Loader2 size={11} className="animate-spin opacity-50" />
                   : isRead
@@ -392,9 +426,13 @@ const ChatBubble = ({ message, isOwn, isGroup = false }) => {
           )}
         </div>
 
-        {/* Reactions */}
+        {/* Reactions (shown for both human and AI messages) */}
         {message.reactions?.length > 0 && (
-          <ReactionsRow reactions={message.reactions} currentUserId={user?._id} onReact={handleReact} />
+          <ReactionsRow
+            reactions={message.reactions}
+            currentUserId={user?._id}
+            onReact={handleReact}
+          />
         )}
       </div>
 
@@ -403,26 +441,29 @@ const ChatBubble = ({ message, isOwn, isGroup = false }) => {
         <div className={`flex items-center gap-1 pb-7 shrink-0 transition-all duration-150 ${
           showActions ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}>
-          {/* React */}
-          <div className="relative">
-            <button
-              onClick={() => { setShowReactPicker(p => !p); setShowDropdown(false); }}
-              className="p-1.5 rounded-full bg-[#1c1830] border border-purple-500/15
-                text-gray-500 hover:text-purple-300 hover:border-purple-500/40
-                transition-all hover:scale-110 active:scale-90"
-            >
-              <SmilePlus size={14} />
-            </button>
-            {showReactPicker && (
-              <QuickReactPicker
-                onReact={handleReact}
-                onClose={() => setShowReactPicker(false)}
-                alignRight={isOwn}
-              />
-            )}
-          </div>
 
-          {/* Reply */}
+          {/* React picker — hidden for AI messages */}
+          {!isAIMessage && (
+            <div className="relative">
+              <button
+                onClick={() => { setShowReactPicker(p => !p); setShowDropdown(false); }}
+                className="p-1.5 rounded-full bg-[#1c1830] border border-purple-500/15
+                  text-gray-500 hover:text-purple-300 hover:border-purple-500/40
+                  transition-all hover:scale-110 active:scale-90"
+              >
+                <SmilePlus size={14} />
+              </button>
+              {showReactPicker && (
+                <QuickReactPicker
+                  onReact={handleReact}
+                  onClose={() => setShowReactPicker(false)}
+                  alignRight={isOwn}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Reply — always shown */}
           {!message.isDeleted && (
             <button
               onClick={handleReply}
@@ -434,30 +475,32 @@ const ChatBubble = ({ message, isOwn, isGroup = false }) => {
             </button>
           )}
 
-          {/* More options */}
-          <div className="relative">
-            <button
-              onClick={() => { setShowDropdown(p => !p); setShowReactPicker(false); }}
-              className="p-1.5 rounded-full bg-[#1c1830] border border-purple-500/15
-                text-gray-500 hover:text-purple-300 hover:border-purple-500/40
-                transition-all hover:scale-110 active:scale-90"
-            >
-              <MoreHorizontal size={14} />
-            </button>
-            {showDropdown && (
-              <DropdownMenu
-                isOwn={isOwn}
-                messageType={message.messageType}
-                isDeleted={message.isDeleted}
-                onCopy={handleCopy}
-                onReply={handleReply}
-                onEdit={() => setIsEditing(true)}
-                onDelete={handleDelete}
-                onClose={() => setShowDropdown(false)}
-                alignRight={isOwn}
-              />
-            )}
-          </div>
+          {/* More options dropdown — hidden for AI messages */}
+          {!isAIMessage && (
+            <div className="relative">
+              <button
+                onClick={() => { setShowDropdown(p => !p); setShowReactPicker(false); }}
+                className="p-1.5 rounded-full bg-[#1c1830] border border-purple-500/15
+                  text-gray-500 hover:text-purple-300 hover:border-purple-500/40
+                  transition-all hover:scale-110 active:scale-90"
+              >
+                <MoreHorizontal size={14} />
+              </button>
+              {showDropdown && (
+                <DropdownMenu
+                  isOwn={isOwn}
+                  messageType={message.messageType}
+                  isDeleted={message.isDeleted}
+                  onCopy={handleCopy}
+                  onReply={handleReply}
+                  onEdit={() => setIsEditing(true)}
+                  onDelete={handleDelete}
+                  onClose={() => setShowDropdown(false)}
+                  alignRight={isOwn}
+                />
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

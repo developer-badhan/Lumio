@@ -4,6 +4,10 @@ import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../hooks/useChat';
 import { fetchAllUsers } from '../../services/auth';
 import Avatar from '../ui/Avatar';
+import { Sparkles } from 'lucide-react';
+
+// Detect Lumio AI user
+const isAIUser = (user) => user?.name === 'Lumio AI';
 
 // Format lastSeen into a human-readable relative string
 const formatLastSeen = (date) => {
@@ -32,7 +36,6 @@ const UserList = ({ onUserSelect }) => {
   const [search, setSearch]     = useState('');
   const [opening, setOpening]   = useState(null); 
 
-  // Fetch all registered users on mount
   useEffect(() => {
     const load = async () => {
       try {
@@ -49,23 +52,25 @@ const UserList = ({ onUserSelect }) => {
     load();
   }, [currentUser?._id]);
 
-  // Merge REST user list with live socket onlineUsers[] for real-time status.
   const enrichedUsers = useMemo(() => {
     return allUsers.map(user => ({
       ...user,
-      isOnline: onlineUsers.includes(user._id),
+      isOnline: isAIUser(user) ? true : onlineUsers.includes(user._id),
     }));
   }, [allUsers, onlineUsers]);
 
-  // Sort: online users bubble to top, then alphabetical within each group
+  // Sort: AI first, then online, then alphabetical
   const sortedUsers = useMemo(() => {
     return [...enrichedUsers].sort((a, b) => {
+      const aAI = isAIUser(a);
+      const bAI = isAIUser(b);
+
+      if (aAI !== bAI) return aAI ? -1 : 1;
       if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
       return a.name.localeCompare(b.name);
     });
   }, [enrichedUsers]);
 
-  // Filter by search query (name or email)
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return sortedUsers;
@@ -75,11 +80,11 @@ const UserList = ({ onUserSelect }) => {
   }, [sortedUsers, search]);
 
   const handleUserClick = async (user) => {
-    if (opening) return; // block double-click while a request is in-flight
+    if (opening) return;
     setOpening(user._id);
     try {
       await openPrivateConversation(user._id);
-      onUserSelect?.(); // tell Sidebar to flip back to the Chats tab
+      onUserSelect?.();
     } catch (err) {
       console.error('Failed to open conversation:', err);
     } finally {
@@ -135,7 +140,7 @@ const UserList = ({ onUserSelect }) => {
         />
       </div>
 
-      {/* Online count pill */}
+      {/* Online count */}
       {onlineCount > 0 && (
         <div className="px-4 pb-2 shrink-0">
           <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 rounded-full px-2.5 py-0.5">
@@ -152,49 +157,63 @@ const UserList = ({ onUserSelect }) => {
             No users found
           </div>
         ) : (
-          filteredUsers.map(user => (
-            <button
-              key={user._id}
-              onClick={() => handleUserClick(user)}
-              disabled={!!opening}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#111] transition-colors text-left group disabled:opacity-60"
-            >
-              <Avatar
-                src={user.profilePic}
-                fallback={user.name?.charAt(0)?.toUpperCase()}
-                alt={user.name}
-                online={user.isOnline}
-              />
+          filteredUsers.map(user => {
+            const isAI = isAIUser(user);
 
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate group-hover:text-purple-300 transition-colors">
-                  {user.name}
-                </p>
-                <p className={`text-xs truncate mt-0.5 ${user.isOnline ? 'text-emerald-400' : 'text-gray-500'}`}>
-                  {user.isOnline ? 'Online' : formatLastSeen(user.lastSeen)}
-                </p>
-              </div>
+            return (
+              <button
+                key={user._id}
+                onClick={() => handleUserClick(user)}
+                disabled={!!opening}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#111] transition-colors text-left group disabled:opacity-60"
+              >
+                {/* Avatar */}
+                {isAI ? (
+                  <div className="relative shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-teal-600/20 border border-teal-500/30 flex items-center justify-center">
+                      <Sparkles size={18} className="text-teal-400" />
+                    </div>
+                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-black" />
+                  </div>
+                ) : (
+                  <Avatar
+                    src={user.profilePic}
+                    fallback={user.name?.charAt(0)?.toUpperCase()}
+                    alt={user.name}
+                    online={user.isOnline}
+                  />
+                )}
 
-              {/* Spinner only on the specific user row being opened */}
-              {opening === user._id && (
-                <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin shrink-0" />
-              )}
-            </button>
-          ))
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-semibold text-white truncate group-hover:text-purple-300 transition-colors">
+                      {user.name}
+                    </p>
+
+                    {isAI && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full
+                        bg-teal-500/15 text-teal-400 border border-teal-500/20">
+                        AI
+                      </span>
+                    )}
+                  </div>
+
+                  <p className={`text-xs truncate mt-0.5 ${user.isOnline ? 'text-emerald-400' : 'text-gray-500'}`}>
+                    {isAI ? 'AI Assistant' : (user.isOnline ? 'Online' : formatLastSeen(user.lastSeen))}
+                  </p>
+                </div>
+
+                {opening === user._id && (
+                  <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin shrink-0" />
+                )}
+              </button>
+            );
+          })
         )}
       </div>
-
     </div>
   );
 };
 
 export default UserList;
-
-
-
-
-
-
-
-
-

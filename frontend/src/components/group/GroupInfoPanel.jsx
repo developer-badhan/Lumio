@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   X, UserPlus, Link2, Settings, LogOut,
-  Lock, Crown, Shield, Camera, Users
+  Lock, Crown, Shield, Camera, Users, Sparkles
 } from 'lucide-react';
 import { useGroup } from '../../hooks/useGroup';
 import { useChat } from '../../hooks/useChat';
@@ -33,6 +33,10 @@ const GroupInfoPanel = () => {
     } catch {}
   };
 
+// Detect if this is the Lumio AI group (used for the AI assistant conversation)
+const isAIGroup = (group) => group?.groupName === 'Lumio AI';
+const isAI = isAIGroup(groupDetails);
+
   return (
     <>
       {/* Backdrop */}
@@ -62,16 +66,37 @@ const GroupInfoPanel = () => {
           {/* Group identity */}
           <div className="flex flex-col items-center py-6 px-4 gap-3 border-b border-gray-800/50">
             <div className="relative">
-              {groupDetails?.groupIcon
-                ? <img src={groupDetails.groupIcon} alt={groupDetails.groupName}
-                    className="w-20 h-20 rounded-full object-cover ring-2 ring-purple-500/30" />
-                : (
-                  <div className="w-20 h-20 rounded-full bg-purple-600/20 flex items-center justify-center
-                    ring-2 ring-purple-500/20">
-                    <Users size={32} className="text-purple-400/60" />
+
+              {isAI ? (
+                <div className="relative shrink-0">
+                  
+                  {/* subtle glow (not overkill) */}
+                  <div className="absolute inset-0 rounded-full bg-teal-500/10 blur-md" />
+
+                  <div className="relative w-20 h-20 rounded-full 
+                    bg-teal-600/20 border border-teal-500/30 
+                    flex items-center justify-center
+                    shadow-[0_0_20px_rgba(20,184,166,0.15)]">
+
+                    <Sparkles size={30} className="text-teal-400" />
                   </div>
-                )
-              }
+
+                  {/* online dot */}
+                  <span className="absolute bottom-1 right-1 w-3 h-3 rounded-full bg-emerald-400 border-2 border-black" />
+                </div>
+              ) : groupDetails?.groupIcon ? (
+                <img
+                  src={groupDetails.groupIcon}
+                  alt={groupDetails.groupName}
+                  className="w-20 h-20 rounded-full object-cover ring-2 ring-purple-500/30"
+                />
+              ) : (
+                <div className="w-20 h-20 rounded-full bg-purple-600/20 flex items-center justify-center
+                  ring-2 ring-purple-500/20">
+                  <Users size={32} className="text-purple-400/60" />
+                </div>
+              )}
+
               {isAdmin && (
                 <button
                   onClick={() => { setShowSettings(true); setShowInfoPanel(false); }}

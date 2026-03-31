@@ -1,10 +1,20 @@
 import React, { useState, useCallback } from 'react';
-import { Search, MoreVertical, Crown, Shield, Loader2 } from 'lucide-react';
+import { Search, MoreVertical, Crown, Shield, Loader2, Sparkles } from 'lucide-react';
 import { useGroup } from '../../hooks/useGroup';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import Avatar from '../ui/Avatar';
 import MemberActionMenu from './MemberActionMenu';
+
+
+/*
+** This component displays the list of group members in the Group Info Panel.
+** It supports searching, shows role badges, and provides admin actions via a dropdown menu.
+** Admin actions include promoting/demoting members, removing members, and transferring ownership.
+** The list is sorted by role (owner > admin > member) and then alphabetically.
+** The component also handles loading states and shows appropriate feedback for actions.
+** The isAIUser function is used to detect if a member is the Lumio AI user, which is always shown as online.
+*/
 
 const ROLE_ORDER = { super_admin: 0, admin: 1, member: 2 };
 
@@ -58,6 +68,8 @@ const GroupMemberList = ({ compact = false }) => {
     }
   }, [showToast]);
 
+  const isAIUser = (user) => user?.name === 'Lumio AI';
+
   return (
     <div className="flex flex-col">
       {/* Search */}
@@ -94,7 +106,27 @@ const GroupMemberList = ({ compact = false }) => {
                 key={m._id}
                 className="flex items-center gap-3 px-1 py-2 rounded-xl hover:bg-white/3 transition-colors group relative"
               >
-                <Avatar src={m.profilePic} name={m.name} size="sm" online={m.isOnline} />
+                {/* <Avatar src={m.profilePic} name={m.name} size="sm" online={m.isOnline} /> */}
+                {isAIUser(m) ? (
+                  <div className="relative shrink-0">
+                    {/* subtle glow */}
+                    <div className="absolute inset-0 rounded-full bg-teal-500/10 blur-sm" />
+                    <div className="relative w-8 h-8 rounded-full 
+                      bg-teal-600/20 border border-teal-500/30 
+                      flex items-center justify-center">
+                      <Sparkles size={14} className="text-teal-400" />
+                    </div>
+                        {/* online dot */}
+                        <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-400 border border-black" />
+                      </div>
+                  ) : (
+                  <Avatar
+                    src={m.profilePic}
+                    name={m.name}
+                    size="sm"
+                    online={m.isOnline}
+                  />
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <p className="text-sm text-white font-medium truncate">

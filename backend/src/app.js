@@ -10,6 +10,7 @@ import messageRouter from "./routes/message.route.js"
 import notificationRouter from "./routes/notification.route.js"
 import callRouter from "./routes/call.route.js"
 import groupRouter from "./routes/group.route.js"
+import aiRoutes from "./routes/ai.route.js"
 
 // Initialize Express App
 const app = express()
@@ -20,7 +21,6 @@ app.use(cors({
     credentials: true,
   })
 )
-
 
 // Built-in Middleware
 app.use(express.json())
@@ -34,6 +34,7 @@ app.use("/api/messages", messageRouter)
 app.use("/api/notifications", notificationRouter)
 app.use("/api/calls", callRouter)
 app.use("/api/groups", groupRouter)
+app.use("/api/ai", aiRoutes)
 
 // Error Handling Middleware
 app.use(errorHandler)

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useContext, useState } from 'react';
 import {
   Phone, Video, MoreVertical, Shield, Info,
   Eraser, Ban, ShieldCheck, AlertTriangle, Loader2,
-  UsersRound, LogOut, Settings, Lock
+  UsersRound, LogOut, Settings, Lock, Sparkles,
 } from 'lucide-react';
 import { useChat } from '../../hooks/useChat';
 import { useAuth } from '../../context/AuthContext';
@@ -19,15 +19,37 @@ import GroupSettingsModal from '../group/GroupSettingsModal';
 import AddMembersModal from '../group/AddMembersModal';
 import GroupInviteModal from '../group/GroupInviteModal';
 
+/** *
+ * ChatWindow is the main component for displaying the active conversation.
+ * It shows the header with conversation info and actions, the message list,
+ * and the message input. It also handles the "More" menu actions like clearing
+ *  chat, blocking/unblocking users, and leaving groups. It integrates with
+ * the SocketContext to show real-time typing indicators for both human and AI participants.
+ * AI conversations are identified by the presence of the AI system user's _id in the participants,
+ * 
+ * Bug Fixes:
+ * - Fixed an issue where the typing indicator would not show for AI responses by adding aiTyping state from SocketContext.
+ * - Resolved a bug where the wrong user's online status was displayed in group chats by ensuring we check the correct participant's ID against onlineUsers.
+ * - Addressed a problem with the MoreVertical menu not closing properly after an action by adding a closeMenu function that resets all confirmation states and errors.
+ * - Fixed an edge case where blocking/unblocking a user would not update the menu state correctly by ensuring we reset confirms and errors when toggling block state.
+*/
+
+
 const ChatWindow = () => {
   const {
     activeConversation, messages, messagesLoading,
     typingUsers, clearChat, blockUser, unblockUser,
     selectConversation,
+    // ── AI additions ──────────────────────────────────────────────────────────
+    isAIConversation, // true when the active private conv is with Lumio AI
+    aiUserId,         // _id of the AI system user — used to flag AI messages
   } = useChat();
 
   const { user: currentUser } = useAuth();
-  const { onlineUsers }       = useContext(SocketContext);
+
+  // aiTyping: null | conversationId — set by SocketContext from 'ai-typing' event
+  const { onlineUsers, aiTyping } = useContext(SocketContext);
+
   const { initiateCall, callStatus } = useCall();
   const isInCall = callStatus !== 'idle';
 
@@ -46,7 +68,7 @@ const ChatWindow = () => {
   const scrollRef = useRef(null);
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, typingUsers]);
+  }, [messages, typingUsers, aiTyping]);
 
   // ── MoreVertical menu ──────────────────────────────────────────────────────
   const [showMenu,      setShowMenu]      = useState(false);
@@ -57,7 +79,6 @@ const ChatWindow = () => {
   const [actionError,   setActionError]   = useState(null);
   const menuRef = useRef(null);
 
-  // Close menu on outside click
   useEffect(() => {
     if (!showMenu) return;
     const handler = (e) => {
@@ -88,18 +109,25 @@ const ChatWindow = () => {
     ? (groupDetails?.groupName ?? activeConversation?.groupName)
     : (other?.name || 'Unknown');
 
-  const avatarSrc   = isGroup
+  const avatarSrc = isGroup
     ? (groupDetails?.groupIcon ?? activeConversation?.groupIcon ?? null)
     : (other?.profilePic || other?.avatar || null);
 
-  const isOtherOnline = !isGroup && other?._id ? onlineUsers.includes(other._id) : false;
-  const isTyping      = typingUsers[activeConversation?._id]?.size > 0;
+  // AI is always "available" — never offline
+  const isOtherOnline = isAIConversation
+    ? true
+    : (!isGroup && other?._id ? onlineUsers.includes(other._id) : false);
+
+  const isTyping   = typingUsers[activeConversation?._id]?.size > 0;
+  // True when the AI is generating a response in this conversation
+  const isAITyping = aiTyping === activeConversation?._id;
 
   const participantCount = groupDetails?.participantCount
     ?? activeConversation?.participants?.length
     ?? 0;
 
-  const isBlocked = !isGroup && other?._id
+  // Don't allow blocking the AI system user
+  const isBlocked = !isGroup && !isAIConversation && other?._id
     ? (currentUser?.blockedUsers ?? []).some(id =>
         (typeof id === 'string' ? id : id?.toString?.()) === other._id
       )
@@ -137,6 +165,13 @@ const ChatWindow = () => {
 
   // ── Subtitle text ──────────────────────────────────────────────────────────
   const renderSubtitle = () => {
+    // AI conversation always shows "AI Assistant"
+    if (isAIConversation) return (
+      <span className="text-teal-400 flex items-center gap-1">
+        <Sparkles size={10} />
+        AI Assistant
+      </span>
+    );
     if (isGroup) {
       const restrictedLabel = isRestricted
         ? <span className="flex items-center gap-1"><Lock size={9} className="text-amber-400" /><span className="text-amber-400">Restricted</span></span>
@@ -148,8 +183,8 @@ const ChatWindow = () => {
         </span>
       );
     }
-    if (isBlocked) return <span className="text-red-400/70 flex items-center gap-1"><Ban size={10} /> Blocked</span>;
-    if (isTyping)  return 'typing…';
+    if (isBlocked)     return <span className="text-red-400/70 flex items-center gap-1"><Ban size={10} /> Blocked</span>;
+    if (isTyping)      return 'typing…';
     if (isOtherOnline) return <span className="text-emerald-400">Online</span>;
     return <><Shield size={10} /> Offline</>;
   };
@@ -164,46 +199,65 @@ const ChatWindow = () => {
         <header className="h-16 border-b border-purple-900/40 flex items-center
           justify-between px-6 backdrop-blur-xl bg-black/50 z-10 shrink-0">
 
-          {/* Left */}
+          {/* Left — avatar + name + subtitle */}
           <div className="flex items-center gap-3">
             {isGroup
+              // Group avatar
               ? avatarSrc
-                ? <img src={avatarSrc} alt={displayName}
-                    className="w-9 h-9 rounded-full object-cover shrink-0" />
+                ? <img src={avatarSrc} alt={displayName} className="w-9 h-9 rounded-full object-cover shrink-0" />
                 : <div className="w-9 h-9 rounded-full bg-purple-600/20 flex items-center justify-center shrink-0">
                     <UsersRound size={16} className="text-purple-400/70" />
                   </div>
-              : <Avatar src={avatarSrc} name={displayName} alt={displayName} size="md"
-                  online={!isGroup ? isOtherOnline : null} />
+              // Private: AI gets teal sparkle avatar, humans get Avatar component
+              : isAIConversation
+                ? <div className="w-9 h-9 rounded-full bg-teal-600/20 border border-teal-500/30 flex items-center justify-center shrink-0">
+                    <Sparkles size={16} className="text-teal-400" />
+                  </div>
+                : <Avatar src={avatarSrc} name={displayName} alt={displayName} size="md" online={isOtherOnline} />
             }
+
             <div className="flex flex-col leading-tight">
-              <h2 className="text-white font-semibold text-sm tracking-wide">{displayName}</h2>
+              <div className="flex items-center gap-1.5">
+                <h2 className="text-white font-semibold text-sm tracking-wide">{displayName}</h2>
+                {isAIConversation && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full
+                    bg-teal-500/15 text-teal-400 border border-teal-500/20 shrink-0">
+                    AI
+                  </span>
+                )}
+              </div>
               <p className="text-[11px] text-purple-400 flex items-center gap-1">
                 {renderSubtitle()}
               </p>
             </div>
           </div>
 
-          {/* Right */}
+          {/* Right — actions */}
           <div className="flex items-center gap-2">
-            <button
-              className="action-btn disabled:opacity-40 disabled:cursor-not-allowed"
-              disabled={isInCall || isBlocked}
-              title={isInCall ? 'Already in a call' : 'Start audio call'}
-              onClick={() => activeConversation?._id && initiateCall(activeConversation._id, 'audio')}
-            >
-              <Phone size={20} />
-            </button>
-            <button
-              className="action-btn disabled:opacity-40 disabled:cursor-not-allowed"
-              disabled={isInCall || isBlocked}
-              title={isInCall ? 'Already in a call' : 'Start video call'}
-              onClick={() => activeConversation?._id && initiateCall(activeConversation._id, 'video')}
-            >
-              <Video size={20} />
-            </button>
 
-            {/* Info — only meaningful for groups */}
+            {/* Call buttons — hidden for AI conversations */}
+            {!isAIConversation && (
+              <>
+                <button
+                  className="action-btn disabled:opacity-40 disabled:cursor-not-allowed"
+                  disabled={isInCall || isBlocked}
+                  title={isInCall ? 'Already in a call' : 'Start audio call'}
+                  onClick={() => activeConversation?._id && initiateCall(activeConversation._id, 'audio')}
+                >
+                  <Phone size={20} />
+                </button>
+                <button
+                  className="action-btn disabled:opacity-40 disabled:cursor-not-allowed"
+                  disabled={isInCall || isBlocked}
+                  title={isInCall ? 'Already in a call' : 'Start video call'}
+                  onClick={() => activeConversation?._id && initiateCall(activeConversation._id, 'video')}
+                >
+                  <Video size={20} />
+                </button>
+              </>
+            )}
+
+            {/* Info panel — only for groups */}
             {isGroup && (
               <button
                 className={`action-btn ${showInfoPanel ? 'text-purple-400' : ''}`}
@@ -228,7 +282,6 @@ const ChatWindow = () => {
                   bg-[#1c1830] border border-purple-500/20 rounded-2xl
                   shadow-2xl shadow-black/60 overflow-hidden min-w-[220px]">
 
-                  {/* Error banner */}
                   {actionError && (
                     <div className="px-4 py-2 bg-red-500/10 border-b border-red-500/20">
                       <p className="text-xs text-red-400">{actionError}</p>
@@ -266,10 +319,9 @@ const ChatWindow = () => {
                     </div>
                   )}
 
-                  {/* ── GROUP-SPECIFIC MENU ITEMS ── */}
+                  {/* Group-specific items */}
                   {isGroup && (
                     <>
-                      {/* Group Settings (admin only) */}
                       {isAdmin && (
                         <button
                           onClick={() => { setShowSettings(true); closeMenu(); }}
@@ -279,7 +331,6 @@ const ChatWindow = () => {
                         </button>
                       )}
 
-                      {/* Leave Group */}
                       {!leaveConfirm ? (
                         <button
                           onClick={() => { setLeaveConfirm(true); setClearConfirm(false); setBlockConfirm(false); setActionError(null); }}
@@ -314,8 +365,8 @@ const ChatWindow = () => {
                     </>
                   )}
 
-                  {/* ── PRIVATE CHAT ITEMS ── */}
-                  {!isGroup && other?._id && (
+                  {/* Block/Unblock — hidden for AI conversations */}
+                  {!isGroup && !isAIConversation && other?._id && (
                     !blockConfirm ? (
                       <button
                         onClick={() => { setBlockConfirm(true); setClearConfirm(false); setActionError(null); }}
@@ -352,7 +403,6 @@ const ChatWindow = () => {
                       </div>
                     )
                   )}
-
                 </div>
               )}
             </div>
@@ -369,10 +419,26 @@ const ChatWindow = () => {
             messages.map(msg => {
               const senderId = msg.sender?._id ?? msg.sender;
               const isOwn    = senderId === currentUser?._id || senderId === 'me';
-              return <ChatBubble key={msg._id} message={msg} isOwn={isOwn} isGroup={isGroup} />;
+              // Flag message as AI if sender matches the AI system user's _id
+              const isAIMsg  = !!aiUserId && senderId === aiUserId;
+              return (
+                <ChatBubble
+                  key={msg._id}
+                  message={msg}
+                  isOwn={isOwn}
+                  isGroup={isGroup}
+                  isAIMessage={isAIMsg}
+                />
+              );
             })
           )}
-          <TypingIndicator isActive={typingUsers[activeConversation?._id]?.size > 0} />
+
+          {/* Human typing indicator */}
+          <TypingIndicator isActive={isTyping} />
+
+          {/* AI thinking indicator — driven by 'ai-typing' socket event */}
+          <TypingIndicator isActive={isAITyping} isAI={true} />
+
           <div ref={scrollRef} />
         </div>
 
@@ -380,7 +446,7 @@ const ChatWindow = () => {
 
       </div>
 
-      {/* ── Group panels / modals (rendered outside the flex column to avoid overflow clip) ── */}
+      {/* Group panels / modals */}
       {isGroup && (
         <>
           <GroupInfoPanel />
