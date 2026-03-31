@@ -12,7 +12,8 @@ import {
   changePassword,
   updateProfile,
   blockUser,
-  unblockUser
+  unblockUser,
+  deleteAccount
 } from "../controllers/auth.controller.js"
 import { profileMediaUpload } from "../middleware/upload.middleware.js"
 import authenticateRoute from "../middleware/auth.middleware.js"
@@ -36,5 +37,6 @@ router.patch("/change-profile-pic", authenticateRoute, profileMediaUpload, chang
 router.patch("/change-password", authenticateRoute, changePassword)
 router.patch("/update-profile", authenticateRoute, profileMediaUpload, updateProfile)
 router.delete("/unblock/:userId", authenticateRoute, unblockUser)
+router.delete("/delete-account", authenticateRoute, deleteAccount);
 
 export default router

@@ -133,3 +133,40 @@ export const sendGroupDemotionEmail = async (email, name, groupName) => {
   `;
   return await sendEmail({ to: email, subject, html });
 };
+
+// Block Notification
+export const sendBlockNotificationEmail = async (email, name, blockerName) => {
+  const subject = "You have been blocked 🚫";
+
+  const html = `
+    <h2>Hello ${name},</h2>
+    <p>You have been blocked by <strong>${blockerName}</strong> on Lumio.</p>
+    <p>You will no longer be able to interact with them.</p>
+  `;
+  return await sendEmail({ to: email, subject, html });
+};
+
+// Unblock Notification
+export const sendUnblockNotificationEmail = async (email, name, blockerName) => {
+  const subject = "You have been unblocked ✅";
+
+  const html = `
+    <h2>Hello ${name},</h2>
+    <p><strong>${blockerName}</strong> has unblocked you.</p>
+    <p>You can now interact again.</p>
+  `;
+  return await sendEmail({ to: email, subject, html });
+};
+
+// Account Deletion Confirmation
+export const sendAccountDeletionEmail = async (email, name) => {
+  const subject = "Your Lumio Account Has Been Deleted";
+
+  const html = `
+    <h2>Goodbye ${name},</h2>
+    <p>Your Lumio account has been permanently deleted.</p>
+    <p>We're sorry to see you go.</p>
+    <p>If this wasn't you, please contact support immediately.</p>
+  `;
+  return await sendEmail({ to: email, subject, html });
+};

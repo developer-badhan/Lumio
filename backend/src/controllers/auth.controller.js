@@ -1,6 +1,14 @@
 import User from "../models/user.model.js"
 import { uploadProfileImg, deleteProfileImg } from "../services/cloudinary.service.js"
-import { sendOtpEmail, sendWelcomeEmail, sendLoginNotificationEmail, sendPasswordChangeNotificationEmail  } from "../services/email.service.js"
+import { 
+    sendOtpEmail, 
+    sendWelcomeEmail, 
+    sendLoginNotificationEmail, 
+    sendPasswordChangeNotificationEmail,
+    sendAccountDeletionEmail,
+    sendBlockNotificationEmail,
+    sendUnblockNotificationEmail
+} from "../services/email.service.js"
 import { generateTokens, generateAccessToken, generateVerifyToken } from "../utils/generateToken.js"
 import { generateOtp } from "../utils/generateOtp.js"
 import jwt from "jsonwebtoken"
@@ -570,39 +578,149 @@ export const changePassword = async (req, res) => {
     }
 }
 
+
 // Block User Controller
 export const blockUser = async (req, res) => {
   try {
-    const { userId: targetId } = req.params
-    const currentUserId = req.user._id.toString()
+    const { userId: targetId } = req.params;
+    const currentUserId = req.user._id.toString();
 
-    if (targetId === currentUserId)
-      return res.status(400).json({ success: false, message: "Cannot block yourself" })
+    if (targetId === currentUserId) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot block yourself",
+      });
+    }
 
-    await User.findByIdAndUpdate(
-      currentUserId,
-      { $addToSet: { blockedUsers: targetId } }
-    )
+    // Check if target user exists
+    const targetUser = await User.findById(targetId);
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
 
-    return res.status(200).json({ success: true, message: "User blocked" })
+    const currentUser = await User.findById(currentUserId);
+
+    if (currentUser.blockedUsers.includes(targetId)) {
+      return res.status(400).json({
+        success: false,
+        message: "User already blocked",
+      });
+    }
+
+    currentUser.blockedUsers.push(targetId);
+    await currentUser.save();
+
+    // Send Email
+    await sendBlockNotificationEmail(
+      targetUser.email,
+      targetUser.name,
+      currentUser.name
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "User blocked successfully",
+    });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message })
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
-}
+};
+
 
 // Unblock User Controller
 export const unblockUser = async (req, res) => {
   try {
-    const { userId: targetId } = req.params
-    const currentUserId = req.user._id.toString()
+    const { userId: targetId } = req.params;
+    const currentUserId = req.user._id.toString();
 
-    await User.findByIdAndUpdate(
-      currentUserId,
-      { $pull: { blockedUsers: targetId } }
-    )
+    // Check if target user exists
+    const targetUser = await User.findById(targetId);
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
 
-    return res.status(200).json({ success: true, message: "User unblocked" })
+    const currentUser = await User.findById(currentUserId);
+
+    if (!currentUser.blockedUsers.includes(targetId)) {
+      return res.status(400).json({
+        success: false,
+        message: "User is not blocked",
+      });
+    }
+
+    currentUser.blockedUsers = currentUser.blockedUsers.filter(
+      (id) => id.toString() !== targetId
+    );
+
+    await currentUser.save();
+
+    // Send Email
+    await sendUnblockNotificationEmail(
+      targetUser.email,
+      targetUser.name,
+      currentUser.name
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "User unblocked successfully",
+    });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message })
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
-}
+};
+
+// Delete Account Controller
+export const deleteAccount = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Delete profile picture from Cloudinary
+    if (user.profilePicPublicId) {
+      await deleteProfileImg(user.profilePicPublicId);
+    }
+
+    // Send email BEFORE deletion (important)
+    await sendAccountDeletionEmail(user.email, user.name);
+
+    //  Delete user from DB
+    await User.findByIdAndDelete(user._id);
+
+    //  Clear refresh token
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Account deleted successfully",
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Internal server error",
+    });
+  }
+};
