@@ -5,6 +5,23 @@ import {
   deleteAccount as deleteAccountApi 
 } from '../services/profile';
 
+/**
+ * AuthContext manages authentication state and actions across the app. It provides:
+ * - user: The current authenticated user's data (or null if not authenticated)
+ * - login(token, userData): Call on successful login to store token and user info
+ * - logout(): Call to log out the user, clear tokens, and redirect to login page
+ * - loading: Indicates if the auth state is still being determined (e.g. on app load)
+ * - setPreVerifyToken(token): Store the verifyToken after registration for later use in email verification
+ * - updateUser(updatedUserData): Directly update the user state (used for real-time updates from socket events)
+ * - updateProfile(payload): Call API to update user profile, then merge changes into user state
+ * deleteAccount(): Call API to delete account, then clear state and redirect
+ * you can use the useAuth() hook in any component to access these values and functions.
+ * 
+ * On app load, it checks for an existing token and tries to rehydrate the user session by calling GET /auth/me.
+ * If the token is invalid or expired, it clears the token and sets user to null.
+ * The loading state is used to prevent rendering protected routes until we've determined if the user is authenticated or not.
+ */
+
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {

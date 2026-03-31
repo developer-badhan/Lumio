@@ -4,6 +4,21 @@ import { useGroup } from '../../hooks/useGroup';
 import Avatar from '../ui/Avatar';
 import api from '../../services/axios';
 
+/**
+ * Modal for adding members to a group. Fetches all users and allows searching and selecting multiple users to add.
+ * Enforces a maximum group size of 256 members and shows appropriate error messages if limits are exceeded.
+ * Provides a clean UI with search, selection, and confirmation features.
+ * Props:
+ * - onClose: function to call when the modal should be closed
+ * State:
+ * - allUsers: list of all users fetched from the server
+ * - loading: whether the user list is currently loading
+ * - selected: set of user IDs currently selected to be added
+ * - search: current search query for filtering users
+ * - adding: whether the add members operation is currently in progress
+ * - error: any error message to display related to adding members
+ */
+
 const MAX_GROUP_MEMBERS = 256;
 
 const AddMembersModal = ({ onClose }) => {

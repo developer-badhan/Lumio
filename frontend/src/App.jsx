@@ -63,6 +63,7 @@ const ChangePasswordLayout = () => {
 };
 
 
+// App Component with all routes and context providers
 function App() {
   return (
     <ToastProvider>

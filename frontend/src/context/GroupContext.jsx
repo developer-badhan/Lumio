@@ -4,6 +4,18 @@ import { useAuth } from './AuthContext';
 import ChatContext from './ChatContext';
 import * as groupService from '../services/group';
 
+/**
+ * GroupContext provides state and actions related to group conversations, including member management, group info, and UI panel visibility.
+ * It listens to real-time group events via Socket.IO to keep the UI in sync with changes made by any member.
+ * Usage:
+ * const { members, groupDetails, isAdmin, handleAddMembers, handleRemoveMember, ... } = useGroup();
+ * The GroupProvider should wrap the part of the app that needs access to group-related functionality, typically at a high level in the component tree.
+ * Example:
+ * <GroupProvider>
+ *   <App />
+ * </GroupProvider>
+ */
+
 const GroupContext = createContext();
 export default GroupContext;
 

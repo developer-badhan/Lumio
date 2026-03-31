@@ -4,6 +4,21 @@ import { useNavigate, Link } from "react-router-dom";
 import api from "../services/axios";
 import { useAuth } from "../context/AuthContext.jsx";
 
+/** * Login component provides a user interface for users to authenticate and access their accounts. It includes form fields for email and password, along with validation and error handling. The component integrates with the backend API to perform the login operation and manages authentication state using AuthContext. The design focuses on a modern and visually appealing layout using Tailwind CSS, ensuring a smooth user experience.
+ * @returns Login component JSX
+ * The component features:
+ * - A form with fields for email and password, including icons for better UX.
+ * - Validation to ensure required fields are filled and provide feedback on errors.
+ * - API integration to submit login credentials and handle responses.
+ * - Loading state management to indicate when the login process is in progress.
+ * - Navigation to the dashboard upon successful login and handling of unverified accounts.
+ * - A visually appealing design with a focus on user experience and accessibility.
+ * Note: Ensure that the backend API endpoint `/auth/login` is properly secured and implements necessary security measures such as rate limiting and account lockout policies to protect against brute-force attacks. Additionally, consider implementing multi-factor authentication for enhanced security.
+ * The component also includes links for users to navigate to the registration page if they don't have an account and to the change password page for existing users who want to update their credentials. The use of Tailwind CSS allows for a responsive and modern design that enhances the overall user experience. The integration with AuthContext ensures that authentication state is managed effectively across the application, providing a seamless experience for users as they log in and access protected routes.
+ * Overall, the Login component serves as a critical entry point for users to access their accounts securely while providing a polished and user-friendly interface. It emphasizes both functionality and aesthetics, making it an essential part of the application's authentication flow.
+ */
+
+
 const Login = () => {
   const navigate    = useNavigate();
   const { login } = useAuth();

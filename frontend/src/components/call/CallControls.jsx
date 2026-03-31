@@ -6,6 +6,19 @@ import {
 } from 'lucide-react';
 import { useCall } from '../../hooks/useCall';
 
+/* *
+  CallControls.jsx
+  ──────────────────────────────────────────────────────────────────────────────
+  Renders the call control buttons (mute/unmute mic, toggle camera, end call).
+  The camera toggle button is only shown for video calls. The end call button
+  is always centered and styled in red to indicate its importance.
+  The component uses the useCall hook to access call state and actions, and
+  applies conditional styling based on the current state (e.g., muted, camera off).
+  Note: The actual call logic (e.g., handling media streams, signaling) is
+  managed by the useCall hook and is not implemented in this component.
+*/
+
+
 const CallControls = () => {
   const {
     activeCall,

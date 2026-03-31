@@ -220,14 +220,28 @@ export const ChatProvider = ({ children }) => {
 
   // F1: non-destructive clear — sets clearedAt timestamp on conversation for this user only
   const clearChat = useCallback(async (conversationId) => {
+    // Store messages for potential rollback
+    const previousMessages = messages;
+    
     try {
+      // IMMEDIATE optimistic update - clear messages right away
+      if (conversationId === activeConversationRef.current?._id) {
+        setMessages([]);
+      }
+      
+      // Then make API call
       await chatService.clearChat(conversationId);
-      // UI cleared via socket "chat-cleared" event below
+      
+      // Socket event will still fire but messages already cleared
     } catch (err) {
+      // On error, restore previous messages
+      if (conversationId === activeConversationRef.current?._id) {
+        setMessages(previousMessages);
+      }
       console.error("Failed to clear chat:", err);
-      throw err;  // re-throw so ChatWindow can show error banner
+      throw err;
     }
-  }, []);
+  }, [messages]); // Add messages to dependencies
 
   // F3: block user — FIX: added updateUser to deps (was missing, stale closure risk)
   const blockUser = useCallback(async (userId) => {

@@ -3,6 +3,17 @@ import { socket } from '../services/socket.js';
 import { useAuth } from './AuthContext.jsx';
 import api from '../services/axios.js';
 
+/** * SocketContext provides a centralized way to manage the Socket.IO connection and related state across the app.
+ * It handles authentication, connection lifecycle, online user tracking, and AI typing indicators.
+ * Usage:
+ * const { socket, onlineUsers, aiTyping } = useSocket();
+ * The SocketProvider should wrap the part of the app that needs access to socket functionality, typically at a high level in the component tree.
+ * Example:
+ * <SocketProvider>
+ *   <App />
+ * </SocketProvider>
+ */
+
 export const SocketContext = createContext();
 
 export const SocketProvider = ({ children }) => {

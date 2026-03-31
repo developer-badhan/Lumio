@@ -5,6 +5,27 @@ import * as groupService from '../../services/group';
 import api from '../../services/axios';
 import Avatar from '../ui/Avatar';
 
+/**
+ * Modal for creating a new group conversation. Guides the user through two steps: entering a group name and selecting members.
+ * Allows optional group icon upload with preview. Validates input and shows error messages for invalid states.
+ * On submission, creates the group via API and immediately opens the new conversation. Provides a clean and responsive UI.
+ * Props:
+ * - onClose: function to call when the modal should be closed
+ * State:
+ * - step: current step of the creation process (1 or 2)
+ * - groupName: name of the group being created
+ * - iconFile: selected file for the group icon
+ * - iconPreview: URL for previewing the selected group icon
+ * - nameError: error message related to the group name input
+ * - allUsers: list of all users fetched from the server for member selection
+ * - usersLoading: whether the user list is currently loading
+ * - selected: set of user IDs currently selected to be added to the group
+ * 
+ * - search: current search query for filtering users in step 2
+ * - creating: whether the group creation operation is currently in progress
+ * - createError: any error message to display related to group creation
+ */
+
 const MAX_NAME = 100;
 
 const CreateGroupModal = ({ onClose }) => {

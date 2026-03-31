@@ -11,6 +11,15 @@ import AddMembersModal from './AddMembersModal';
 import GroupInviteModal from './GroupInviteModal';
 import GroupSettingsModal from './GroupSettingsModal';
 
+
+/** * Panel for displaying group information, members, and quick actions. Shows group icon, name, member count, and status badges.
+ * Provides buttons for adding members, viewing invite link, accessing settings, and leaving the group. Only shows admin actions to admins.
+ * Opens modals for adding members, viewing invite link, and changing settings. Allows leaving the group with confirmation.
+ * Props: none (uses context)
+ * State: none (uses context)
+ */
+
+
 const GroupInfoPanel = () => {
   const {
     groupDetails, members, isAdmin, isSuperAdmin,

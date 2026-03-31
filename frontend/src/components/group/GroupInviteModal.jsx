@@ -2,6 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { X, Link2, Copy, Check, Loader2, RefreshCw } from 'lucide-react';
 import { useGroup } from '../../hooks/useGroup';
 
+/**
+ * Modal for generating and sharing group invite links.
+ * @param {*} param0 
+ * @returns 
+ * Features:
+ * - Fetches invite link on mount and allows regenerating it.
+ * - Shows loading state while fetching and error messages if generation fails.
+ * - Provides a button to copy the invite link to clipboard with feedback.
+ * - Closes on backdrop click or Escape key press.
+ * Props:
+ * - onClose: function to call when the modal should be closed
+ * State:
+ * - inviteUrl: the generated invite URL to display and copy
+ * - loading: whether the invite link is currently being fetched
+ * - error: any error message to display if fetching fails
+ * - copied: whether the invite link has been recently copied (for UI feedback)
+ */
+
+
 const GroupInviteModal = ({ onClose }) => {
   const { handleGenerateInvite, groupDetails } = useGroup();
 

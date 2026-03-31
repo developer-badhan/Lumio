@@ -3,6 +3,22 @@ import { Lock, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/axios";
 
+
+/**
+ * ChangePassword component allows users to update their account password. It includes form validation, error handling, and success feedback. The component uses Tailwind CSS for styling and integrates with the backend API to perform the password change operation.
+ * @returns ChangePassword component JSX
+ * The component features:
+ * - A form with fields for current password, new password, and confirm new password.
+ * - Validation to ensure new passwords match and meet minimum length requirements.
+ * - API integration to submit the password change request.
+ * - Loading state management and user feedback for success or error scenarios.
+ * Provides a visually appealing and user-friendly interface for updating account security.
+ * Pronounced focus on user experience with clear feedback and smooth interactions.
+ * 
+ * Note: Ensure that the backend API endpoint `/auth/change-password` is properly secured and validates the current password before allowing changes. Additionally, consider implementing rate limiting and other security measures to protect against brute-force attacks on the password change functionality.
+ */
+
+
 const ChangePassword = () => {
   const navigate = useNavigate();
 

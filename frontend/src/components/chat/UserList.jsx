@@ -6,6 +6,18 @@ import { fetchAllUsers } from '../../services/auth';
 import Avatar from '../ui/Avatar';
 import { Sparkles } from 'lucide-react';
 
+
+/** * UserList component displays a searchable list of users for private chat.
+ * It highlights online users and includes a special entry for the Lumio AI assistant.
+ * Props:
+ * - onUserSelect: callback when a user is selected to open a conversation
+ * State:
+ * - allUsers: list of all users fetched from the server
+ * - loading: whether the user list is currently loading
+ */ 
+
+
+
 // Detect Lumio AI user
 const isAIUser = (user) => user?.name === 'Lumio AI';
 

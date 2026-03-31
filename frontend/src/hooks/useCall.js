@@ -1,6 +1,7 @@
 import { useContext } from 'react';
 import { CallContext } from '../context/CallContext.jsx';
 
+// Custom hook to access the CallContext
 export const useCall = () => {
   const context = useContext(CallContext);
 

@@ -1,6 +1,19 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import Toast from '../components/ui/Toast';
 
+/**
+ * ToastContext provides a way to manage and display toast notifications across the app.
+ * It includes an addToast function to trigger new toasts and automatically removes them after 5 seconds.
+ * Usage:
+ * const { addToast } = useToast();
+ * addToast('This is a toast message!', 'success'); // type can be 'success', 'error', etc.
+ * The ToastProvider should wrap the part of the app where you want to use toasts, typically at a high level in the component tree.
+ * Example:
+ * <ToastProvider>
+ *   <App />
+ * </ToastProvider>
+ */
+
 const ToastContext = createContext();
 
 export const ToastProvider = ({ children }) => {

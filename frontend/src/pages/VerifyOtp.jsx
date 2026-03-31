@@ -4,6 +4,26 @@ import { ArrowRight } from "lucide-react";
 import api from "../services/axios";
 import { useAuth } from "../context/AuthContext";
 
+
+/**
+ * VerifyOTP component provides a user interface for users to verify their accounts using a One-Time Password (OTP) sent to their email. It includes form fields for entering the OTP, validation, error handling, and integration with the backend API to perform the verification process. The component also features a countdown timer for resending the OTP and manages authentication state using AuthContext. The design focuses on a modern and visually appealing layout using Tailwind CSS, ensuring a smooth user experience.
+ * @returns VerifyOTP component JSX
+ * The component features:
+ * - A form with fields for entering the 6-digit OTP, including input validation and user feedback.
+ * - Integration with the backend API to submit the OTP for verification and handle responses.
+ * - A countdown timer for resending the OTP, with appropriate handling for expired tokens and error scenarios.
+ * - Navigation to the login page upon successful verification and to the registration page if the verification token is invalid or expired.
+ * - A visually appealing design with a focus on user experience and accessibility, utilizing Tailwind CSS for styling.
+ * Note: Ensure that the backend API endpoints `/auth/verify-otp` and `/auth/otp-resend` are properly secured and implement necessary security measures such as rate limiting and token expiration to protect against brute-force attacks. Additionally, consider implementing multi-factor authentication for enhanced security. The component also includes error handling for scenarios where the OTP is incorrect or the verification token has expired, providing clear feedback to the user and guiding them through the appropriate next steps.
+ * Overall, the VerifyOTP component serves as a critical part of the account verification process, providing users with a secure and user-friendly interface to confirm their email addresses and access their accounts. It emphasizes both functionality and aesthetics, making it an essential component in the application's authentication flow.
+ * Notes:
+ * - The OTP is expected to be a 6-digit numeric code.
+ * - The component relies on a `verifyToken` stored in localStorage, which should be set during the registration or login process when an unverified account is detected. This token is used to authenticate the OTP verification request and should have a limited lifespan (e.g., 10 minutes).
+ * - The resend functionality allows users to request a new OTP if they did not receive the original one, but it also requires a valid `verifyToken` to prevent abuse. If the token has expired, users are prompted to start the registration process again.
+ * - The component includes user feedback for various states, such as loading, success, and error messages, to enhance the user experience and provide clear guidance throughout the verification process.
+ */
+
+
 // OTP length
 const OTP_LENGTH = 6;
 

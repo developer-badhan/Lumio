@@ -7,6 +7,16 @@ import { useGroup } from '../../hooks/useGroup';
 import { useChat } from '../../hooks/useChat';
 import Avatar from '../ui/Avatar';
 
+
+/*  GroupSettingsModal.jsx
+ *
+ *  Modal for viewing and editing group settings. Only accessible to group members.
+ *  Admins can edit group name/icon and toggle message restrictions. Super admins can also transfer ownership and delete the group.
+ *  Members can leave the group. All actions have confirmation steps and error handling.
+ * 
+ */
+
+
 const MAX_NAME = 100;
 
 const GroupSettingsModal = ({ onClose }) => {

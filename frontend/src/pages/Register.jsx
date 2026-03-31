@@ -10,6 +10,25 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx"; 
 import api from "../services/axios.js";
 
+
+/** * Register component provides a user interface for new users to create an account. It includes form fields for name, email, password, confirm password, and an optional profile picture upload. The component features validation to ensure that passwords match and meet minimum requirements. It integrates with the backend API to submit registration data and handles responses, including error messages and navigation to the OTP verification page upon successful registration.
+ * @returns Register component JSX
+ * The component features:
+ * - A form with fields for name, email, password, confirm password, and profile picture upload.
+ * - Validation to ensure passwords match and meet minimum length requirements.
+ * - API integration to submit registration data and handle responses.
+ * - Loading state management and user feedback for success or error scenarios.
+ * Provides a visually appealing and user-friendly interface for new users to create an account.
+ * Note: Ensure that the backend API endpoint `/auth/register` is properly secured and validates all input data to prevent security vulnerabilities. Additionally, consider implementing email verification and rate limiting to protect against abuse of the registration endpoint. The use of FormData allows for seamless handling of file uploads, but ensure that the backend properly validates and sanitizes uploaded files to prevent security risks.
+ * The design focuses on a modern and visually appealing layout using Tailwind CSS, ensuring a smooth user experience. The integration with AuthContext allows for managing authentication state effectively across the application, providing a seamless experience for users as they register and proceed to verify their accounts. Overall, the Register component serves as a critical entry point for new users to join the platform securely while providing a polished and user-friendly interface. It emphasizes both functionality and aesthetics, making it an essential part of the application's authentication flow.
+ * The component also includes a profile picture upload feature, allowing users to personalize their accounts from the moment they register. The use of Tailwind CSS ensures that the form is responsive and visually appealing, with clear feedback for users during the registration process. The integration with the backend API allows for seamless communication and handling of registration data, ensuring a smooth user experience from start to finish.
+ * Overall, the Register component is designed to provide a secure and user-friendly interface for new users to create accounts, with a focus on both functionality and aesthetics. It serves as a critical part of the application's authentication flow, ensuring that users can easily join the platform while maintaining security best practices.
+ * Note: Ensure that the backend API endpoint `/auth/register` is properly secured and validates all input data to prevent security vulnerabilities. Additionally, consider implementing email verification and rate limiting to protect against abuse of the registration endpoint. The use of FormData allows for seamless handling of file uploads, but ensure that the backend properly validates and sanitizes uploaded files to prevent security risks.
+ * The component also includes a profile picture upload feature, allowing users to personalize their accounts from the moment they register. The use of Tailwind CSS ensures that the form is responsive and visually appealing, with clear feedback for users during the registration process. The integration with the backend API allows for seamless communication and handling of registration data, ensuring a smooth user experience from start to finish.
+ * Overall, the Register component is designed to provide a secure and user-friendly interface for new users to create accounts, with a focus on both functionality and aesthetics. It serves as a critical part of the application's authentication flow, ensuring that users can easily join the platform while maintaining security best practices.
+ */
+
+
 const Register = () => {
   const navigate = useNavigate();
   const { setPreVerifyToken } = useAuth();

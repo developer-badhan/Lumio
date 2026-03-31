@@ -8,6 +8,34 @@ import {
 import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/ui/Avatar';
 
+
+/**
+ * Settings component for managing user preferences and account settings.
+ * @param {*} param0 Context and state management for user settings
+ * @returns rendered Settings page with multiple tabs for profile, notifications, account security, privacy, and chat preferences.
+ * The Settings page is designed with a modern and intuitive UI using Tailwind CSS, providing users with an easy way to customize their experience. It includes a mini navigation rail for quick access back to chats, a sidebar with user information and navigation items, and a main content area that displays the selected settings tab. Each tab contains relevant settings and actions, such as updating profile information, managing notifications, changing passwords, adjusting privacy settings, and configuring chat preferences. The component also handles API interactions for updating user data and provides feedback on actions like saving changes or deleting the account.
+ * Note: Ensure that all API endpoints used in this component are properly secured and implement necessary validation and error handling to protect user data and maintain application integrity. Additionally, consider implementing confirmation dialogs for sensitive actions like changing passwords or deleting accounts to prevent accidental changes.
+ * Overall, the Settings component serves as a central hub for users to manage their account and preferences, enhancing the overall user experience and allowing for greater customization and control over their interactions within the application.
+ * Functionality includes:
+ * - Profile management: Update display name, bio, and profile picture with real-time preview and validation.
+ * - Notifications: Toggle various notification settings with immediate visual feedback.
+ * - Account security: Access options for two-factor authentication, password changes, and active session management.
+ * - Privacy controls: Adjust visibility of last seen, profile photo, bio, and manage read receipts and online status.
+ * - Chat preferences: Configure chat wallpaper, clear conversation history, and enable AI assistant features.
+ * The component emphasizes user experience with clear feedback, intuitive interactions, and a visually appealing design that aligns with modern UI standards. It also ensures that critical actions are safeguarded with confirmations and error handling to maintain user trust and data integrity.
+ * Layout and design:
+ * - A mini navigation rail on the left for quick access back to chats and previous page.
+ * - A sidebar with user information and navigation items for different settings categories.
+ * - A main content area that dynamically renders the selected settings tab with relevant options and actions.
+ * - Use of Tailwind CSS for styling, ensuring a responsive and modern design that enhances usability and aesthetics.
+ * Security considerations:
+ * - Ensure that all API interactions are secure, with proper authentication and authorization checks in place.
+ * - Implement validation and error handling for all user inputs to prevent malicious data and maintain application integrity.
+ * - Consider adding confirmation dialogs for sensitive actions like changing passwords or deleting accounts to prevent accidental changes and enhance user trust.
+ * Overall, the Settings component is a critical part of the user experience, providing a centralized location for users to manage their account and preferences while ensuring security and usability are maintained at a high standard.
+ */
+
+
 // ─── Reusable primitives ──────────────────────────────────────────────────────
 
 const Toggle = ({ enabled, onChange, disabled = false }) => (
